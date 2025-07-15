@@ -25,7 +25,7 @@ struct Component;
 
 impl Guest for Component {
     fn init(data: Option<Vec<u8>>, params: (String,)) -> Result<(Option<Vec<u8>>,), String> {
-        log("Initializing openai-proxy actor");
+        log("Initializing moonshot-proxy actor");
         let (id,) = params;
         log(&format!("Actor ID: {}", id));
 
@@ -84,7 +84,7 @@ impl MessageServerClient for Component {
         state: Option<Vec<u8>>,
         _params: (Vec<u8>,),
     ) -> Result<(Option<Vec<u8>>,), String> {
-        log("Handling send message in openai-proxy");
+        log("Handling send message in moonshot-proxy");
 
         // Nothing to return for a send
         Ok((state,))
@@ -94,7 +94,7 @@ impl MessageServerClient for Component {
         state: Option<Vec<u8>>,
         params: (String, Vec<u8>),
     ) -> Result<(Option<Vec<u8>>, (Option<Vec<u8>>,)), String> {
-        log("Handling request message in openai-proxy");
+        log("Handling request message in moonshot-proxy");
         let (request_id, data) = params;
         log(&format!("Request ID: {}", request_id));
 
