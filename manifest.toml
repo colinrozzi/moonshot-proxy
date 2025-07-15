@@ -1,7 +1,7 @@
 name = "moonshot-proxy"
 version = "0.1.0"
-component = "./target/wasm32-wasip1/release/moonshot_proxy.wasm"
-init_state = "./init-moonshot.json"
+component = "/Users/colinrozzi/work/actor-registry/moonshot-proxy/./target/wasm32-unknown-unknown/release/moonshot_proxy.wasm"
+init_state = "/Users/colinrozzi/work/actor-registry/moonshot-proxy/init-moonshot.json"
 
 [[handler]]
 type = "runtime"
