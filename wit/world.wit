@@ -1,0 +1,11 @@
+package colinrozzi:openai-proxy;
+
+world default {
+  import theater:simple/runtime;
+  import theater:simple/environment;
+  import theater:simple/timing;
+  import theater:simple/http-client;
+
+  export theater:simple/message-server-client;
+  export theater:simple/actor;
+}

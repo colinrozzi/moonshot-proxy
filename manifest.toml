@@ -1,0 +1,22 @@
+name = "openai-proxy"
+version = "0.1.0"
+component = "/Users/colinrozzi/work/actor-registry/openai-proxy/./target/wasm32-unknown-unknown/release/openai_proxy.wasm"
+init_state = "/Users/colinrozzi/work/actor-registry/openai-proxy/init.json"
+
+[[handler]]
+type = "runtime"
+
+[[handler]]
+type = "environment"
+allow_list_all = false
+
+[[handler]]
+type = "timing"
+max_sleep_duration = 3600000
+min_sleep_duration = 1
+
+[[handler]]
+type = "http-client"
+
+[[handler]]
+type = "message-server"

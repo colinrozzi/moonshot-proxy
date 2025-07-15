@@ -1,0 +1,18 @@
+{
+  "store_id": null,
+  "config": {
+    "default_model": "gpt-4o",
+    "base_url": null,
+    "api_key_env": null,
+    "content_format": "Array",
+    "max_cache_size": 100,
+    "timeout_ms": 30000,
+    "retry_config": {
+      "max_retries": 4,
+      "initial_delay_ms": 1000,
+      "max_delay_ms": 30000,
+      "backoff_multiplier": 2.0,
+      "max_total_timeout_ms": 120000
+    }
+  }
+}
