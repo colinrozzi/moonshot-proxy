@@ -1,64 +1,35 @@
-# OpenAI Proxy Actor
+# Moonshot Proxy Actor
 
-A WebAssembly component actor that serves as a proxy for the OpenAI API, making it easy to interact with GPT models within the Theater system through message passing.
+A WebAssembly component actor that serves as a proxy for the Moonshot AI API, making it easy to interact with Moonshot models within the Theater system through message passing.
 
 ## Features
 
-- **API Key Management**: Securely stores and manages OpenAI API keys
+- **API Key Management**: Securely stores and manages Moonshot API keys via `MOONSHOT_API_KEY` environment variable
 - **Message Interface**: Simple request-response messaging system  
-- **Model Information**: Includes details about available OpenAI models, context limits, and pricing
+- **Model Information**: Includes details about available Moonshot models and context limits
 - **Error Handling**: Robust error reporting and handling
 - **Retry Logic**: Exponential backoff retry for transient failures
-- **Multi-modal Support**: Support for text, images, and audio (model dependent)
+- **Content Format**: Configured for Moonshot's string-based content format
 
-## Usage
+## Supported Moonshot Models
 
-The actor implements a simple request-response message interface that supports:
-
-- **Chat Completion**: Generate responses from OpenAI models (GPT-4o, GPT-4, GPT-3.5, o-series)
-- **Model Listing**: List available OpenAI models with their capabilities and pricing
-- **Tool Calling**: Support for function calling and tool use
-- **Advanced Features**: JSON mode, structured outputs, reasoning effort control (o-series)
+- `moonshot-v1-8k` - 8K context window (default)
+- `moonshot-v1-32k` - 32K context window  
+- `moonshot-v1-128k` - 128K context window
+- `moonshot-v1-8k-vision-preview` - Vision model with 8K context
 
 ## Configuration
 
-The actor accepts these configuration parameters during initialization:
-
-### Base URL Configuration
-
-The proxy supports any OpenAI-compatible API by configuring the `base_url` parameter:
-
-- **OpenAI** (default): `https://api.openai.com/v1`
-- **Moonshot AI**: `https://api.moonshot.ai/v1`
-- **Other providers**: Any OpenAI-compatible endpoint
-
-### API Key Configuration
-
-The proxy can use different environment variables for API keys by configuring the `api_key_env` parameter:
-
-- **OpenAI** (default): `OPENAI_API_KEY`
-- **Moonshot AI**: `MOONSHOT_API_KEY`
-- **Other providers**: Any environment variable name
-
-This allows you to keep different API keys for different providers in separate environment variables.
-
-### Content Format Configuration
-
-The proxy supports different content formats for API compatibility:
-
-- **Array** (default): Modern OpenAI format with structured content arrays
-- **String**: Legacy format for providers like Moonshot AI that expect simple strings
-
-Configure using the `content_format` parameter: `"Array"` or `"String"`.
+The actor is pre-configured for Moonshot AI with optimal settings:
 
 ```json
 {
-  "store_id": "optional-store-id",
+  "store_id": null,
   "config": {
-    "default_model": "gpt-4o",
-    "base_url": "https://api.openai.com/v1",
-    "api_key_env": "OPENAI_API_KEY",
-    "content_format": "Array",
+    "default_model": "moonshot-v1-8k",
+    "base_url": "https://api.moonshot.ai/v1",
+    "api_key_env": "MOONSHOT_API_KEY",
+    "content_format": "String",
     "max_cache_size": 100,
     "timeout_ms": 30000,
     "retry_config": {
@@ -72,54 +43,52 @@ Configure using the `content_format` parameter: `"Array"` or `"String"`.
 }
 ```
 
+## Environment Setup
+
+Set your Moonshot API key as an environment variable:
+
+```bash
+export MOONSHOT_API_KEY="your_moonshot_api_key_here"
+```
+
 ## Building
 
 Build the actor using cargo-component:
 
 ```bash
-cargo component build --release --target wasm32-unknown-unknown
+cargo component build --release
 ```
 
-Then update the `component_path` in `manifest.toml` to point to the built WASM file.
+The generated WebAssembly component will be at:
+`./target/wasm32-wasip1/release/moonshot_proxy.wasm`
 
 ## Starting
 
-Start the actor using the Theater system:
+Start the actor using the Theater system with the pre-configured moonshot settings:
 
 ```rust
 let actor_id = start_actor(
-    "/path/to/openai-proxy/manifest.toml",
-    Some(init_data),
-    ("openai-proxy-instance",)
+    "/path/to/moonshot-proxy/manifest.toml",
+    None, // Uses ./init-moonshot.json by default
+    ("moonshot-proxy-instance",)
 );
 ```
 
-### Example Configuration Files
-
-The repository includes example configuration files:
-
-- `init.json` - Default configuration (OpenAI)
-- `init-openai.json` - Explicit OpenAI configuration
-- `init-moonshot.json` - Moonshot AI configuration  
-- `init-example-custom.json` - Example custom provider configuration
-
-You can modify the `init_state` path in `manifest.toml` to point to your desired configuration file.
-
 ## Message Interface
 
-The OpenAI proxy uses the standard genai-types interface for consistency with other AI provider proxies.
+The Moonshot proxy uses the standard genai-types interface for consistency with other AI provider proxies.
 
 ### Request Format
 
 ```rust
 ProxyRequest::GenerateCompletion {
     request: CompletionRequest {
-        model: "gpt-4o".to_string(),
+        model: "moonshot-v1-8k".to_string(),
         messages: vec![
             Message {
                 role: "user".to_string(),
                 content: vec![MessageContent::Text { 
-                    text: "Hello, GPT!".to_string() 
+                    text: "Hello, Moonshot!".to_string() 
                 }],
             },
         ],
@@ -138,8 +107,8 @@ ProxyRequest::GenerateCompletion {
 ```rust
 ProxyResponse::Completion {
     completion: CompletionResponse {
-        id: "chatcmpl-123".to_string(),
-        model: "gpt-4o".to_string(),
+        id: "moonshot-123".to_string(),
+        model: "moonshot-v1-8k".to_string(),
         role: "assistant".to_string(),
         content: vec![MessageContent::Text { 
             text: "Hello! How can I help you today?".to_string() 
@@ -155,140 +124,39 @@ ProxyResponse::Completion {
 }
 ```
 
-## Supported Models
+## Key Differences from OpenAI
 
-The proxy supports models from any OpenAI-compatible provider:
+This proxy is specifically configured for Moonshot AI's API requirements:
 
-### OpenAI Models
-
-When using the default OpenAI endpoint, all current OpenAI models are supported:
-
-### GPT-4o Models
-- `gpt-4o` - Latest GPT-4o model
-- `gpt-4o-mini` - Efficient version of GPT-4o
-
-### GPT-4 Models
-- `gpt-4-turbo` - GPT-4 Turbo with vision
-- `gpt-4` - Original GPT-4 model
-
-### Reasoning Models (o-series)
-- `o3` - Advanced reasoning model
-- `o3-mini` - Efficient reasoning model
-- `o1` - Previous generation reasoning
-- `o1-mini` - Efficient o1 model
-
-### GPT-3.5 Models
-- `gpt-3.5-turbo` - Fast and affordable model
-
-### Moonshot AI Models
-
-When using Moonshot AI's endpoint (`https://api.moonshot.ai/v1`):
-- `moonshot-v1-8k` - 8K context window
-- `moonshot-v1-32k` - 32K context window
-- `moonshot-v1-128k` - 128K context window
-- `moonshot-v1-8k-vision-preview` - Vision model with 8K context
-
-### Other Providers
-
-The proxy works with any OpenAI-compatible API. Check your provider's documentation for supported model names.
-
-## Environment Variables
-
-The proxy looks for API keys in environment variables. The default is `OPENAI_API_KEY`, but you can configure it to use any environment variable name:
-
-- `OPENAI_API_KEY` - Default for OpenAI
-- `MOONSHOT_API_KEY` - Common for Moonshot AI
-- `ANTHROPIC_API_KEY` - Example for Anthropic (if they had OpenAI compatibility)
-- `YOUR_PROVIDER_API_KEY` - Any custom environment variable name
-
-The environment variable name is configured using the `api_key_env` field in your configuration.
-
-## Usage Examples
-
-### Using with OpenAI (Default)
-
-```json
-{
-  "config": {
-    "default_model": "gpt-4o"
-  }
-}
-```
-
-### Using with Moonshot AI
-
-```json
-{
-  "config": {
-    "default_model": "moonshot-v1-8k",
-    "base_url": "https://api.moonshot.ai/v1",
-    "api_key_env": "MOONSHOT_API_KEY",
-    "content_format": "String"
-  }
-}
-```
-
-### Using with Custom OpenAI-Compatible Provider
-
-```json
-{
-  "config": {
-    "default_model": "your-model-name",
-    "base_url": "https://your-provider.com/v1",
-    "api_key_env": "YOUR_PROVIDER_API_KEY",
-    "content_format": "String"
-  }
-}
-```
-
-## Advanced Features
-
-### Tool Calling
-The proxy supports OpenAI's function calling capabilities:
-
-```rust
-let tools = vec![Tool {
-    name: "get_weather".to_string(),
-    description: Some("Get current weather".to_string()),
-    parameters: json!({
-        "type": "object",
-        "properties": {
-            "location": {
-                "type": "string",
-                "description": "The city name"
-            }
-        },
-        "required": ["location"]
-    }),
-}];
-```
-
-### Structured Outputs
-For models that support it, you can request structured JSON responses:
-
-```rust
-// This would be configured in the OpenAI-specific request parameters
-response_format: Some(OpenAIResponseFormat {
-    format_type: "json_schema".to_string(),
-    json_schema: Some(your_schema),
-})
-```
-
-### Reasoning Control (o-series models)
-Control reasoning effort for o-series models:
-
-```rust
-reasoning_effort: Some("high".to_string()) // "low", "medium", "high"
-```
+1. **Content Format**: Uses `"String"` format instead of OpenAI's array format
+2. **Base URL**: Points to `https://api.moonshot.ai/v1`
+3. **API Key**: Expects `MOONSHOT_API_KEY` environment variable
+4. **Models**: Optimized for Moonshot's model naming conventions
 
 ## Error Handling
 
 The proxy provides detailed error information:
 
-- **Authentication errors** for invalid API keys
+- **Authentication errors** for invalid Moonshot API keys
 - **Rate limit errors** with retry-after information  
 - **Model-specific errors** for unsupported features
 - **Network errors** with automatic retry logic
+
+## File Structure
+
+- `init-moonshot.json` - Default initialization configuration for Moonshot
+- `manifest.toml` - Actor manifest with correct component path
+- `src/` - Source code (copied from openai-proxy but adapted)
+
+## Migration from OpenAI Proxy
+
+This project was created by copying and adapting the OpenAI proxy. Key changes made:
+
+- Package name changed from `openai-proxy` to `moonshot-proxy`
+- Default configuration set to Moonshot API endpoint
+- Content format set to "String" for Moonshot compatibility
+- Environment variable changed to `MOONSHOT_API_KEY`
+- Build target updated to `wasm32-wasip1`
 
 ## License
 
