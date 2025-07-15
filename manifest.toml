@@ -1,7 +1,7 @@
-name = "openai-proxy"
+name = "moonshot-proxy"
 version = "0.1.0"
-component = "/Users/colinrozzi/work/actor-registry/openai-proxy/./target/wasm32-unknown-unknown/release/openai_proxy.wasm"
-init_state = "/Users/colinrozzi/work/actor-registry/openai-proxy/init.json"
+component = "./target/wasm32-wasip1/release/moonshot_proxy.wasm"
+init_state = "./init-moonshot.json"
 
 [[handler]]
 type = "runtime"
