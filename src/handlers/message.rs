@@ -7,7 +7,7 @@ pub fn handle_request(
     data: Vec<u8>,
     state_bytes: Vec<u8>,
 ) -> Result<(Option<Vec<u8>>, (Option<Vec<u8>>,)), String> {
-    log("Handling request in openai-proxy actor");
+    log("Handling request in moonshot-proxy actor");
 
     // Parse the state
     let state: State = match serde_json::from_slice(&state_bytes) {
