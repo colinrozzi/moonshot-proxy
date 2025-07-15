@@ -227,22 +227,73 @@ pub struct OpenAIAudio {
 
 impl From<Message> for OpenAIMessage {
     fn from(message: Message) -> Self {
-        Self {
-            role: match message.role {
+        // Check if this message contains tool results - if so, it should be role "tool"
+        let has_tool_results = message.content.iter().any(|content| {
+            matches!(content, genai_types::MessageContent::ToolResult { .. })
+        });
+
+        // Check if this message contains tool calls - if so, extract them
+        let mut tool_calls = Vec::new();
+        let mut regular_content = Vec::new();
+        let mut tool_call_id = None;
+
+        for content in message.content {
+            match content {
+                genai_types::MessageContent::ToolUse { id, name, input } => {
+                    tool_calls.push(OpenAIToolCall {
+                        id: id.clone(),
+                        tool_type: "function".to_string(),
+                        function: OpenAIFunctionCall {
+                            name,
+                            arguments: serde_json::to_string(&input).unwrap_or("{}".to_string()),
+                        },
+                    });
+                }
+                genai_types::MessageContent::ToolResult { tool_use_id, content, is_error: _ } => {
+                    // For tool results, we need to set the tool_call_id and role to "tool"
+                    tool_call_id = Some(tool_use_id);
+                    // Convert tool result content to string format
+                    for tool_content in content {
+                        match tool_content {
+                            mcp_protocol::tool::ToolContent::Text { text } => {
+                                regular_content.push(OpenAIMessageContent::Text { text });
+                            }
+                            // Handle other tool content types as needed
+                            _ => {
+                                regular_content.push(OpenAIMessageContent::Text { 
+                                    text: format!("{:?}", tool_content) 
+                                });
+                            }
+                        }
+                    }
+                }
+                other => {
+                    regular_content.push(OpenAIMessageContent::from(other));
+                }
+            }
+        }
+
+        // Determine the role
+        let role = if has_tool_results {
+            "tool".to_string()  // Tool results must use "tool" role
+        } else {
+            match message.role {
                 genai_types::messages::Role::User => "user".to_string(),
                 genai_types::messages::Role::Assistant => "assistant".to_string(),
                 genai_types::messages::Role::System => "system".to_string(),
+            }
+        };
+
+        Self {
+            role,
+            content: if regular_content.is_empty() {
+                None
+            } else {
+                Some(OpenAIMessageContentFormat::Array(regular_content))
             },
-            content: Some(OpenAIMessageContentFormat::Array(
-                message
-                    .content
-                    .into_iter()
-                    .map(OpenAIMessageContent::from)
-                    .collect(),
-            )),
-            name: None,
-            tool_calls: None,
-            tool_call_id: None,
+            name: None, // Could be extracted from message metadata if needed
+            tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+            tool_call_id,
             audio: None,
             refusal: None,
         }
