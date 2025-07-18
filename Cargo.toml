@@ -11,6 +11,12 @@ package = "colinrozzi:moonshot-proxy"
 
 [package.metadata.component.target.dependencies]
 "theater:simple" = { path = "./wit/deps/theater-simple" }
+"colinrozzi:genai-types" = { path = "./wit/deps/colinrozzi-genai-types" }
+"colinrozzi:mcp-protocol" = { path = "./wit/deps/colinrozzi-mcp-protocol" }
+
+[package.metadata.component.bindings] 
+derives = ["serde::Serialize", "serde::Deserialize"]
+generate_unused_types = true
 
 [dependencies]
 serde_json = "1.0.138"
