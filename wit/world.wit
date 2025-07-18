@@ -1,6 +1,8 @@
 package colinrozzi:openai-proxy;
 
 world default {
+  import colinrozzi:genai-types/types;
+
   import theater:simple/runtime;
   import theater:simple/environment;
   import theater:simple/timing;
