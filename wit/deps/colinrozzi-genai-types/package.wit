@@ -1,0 +1,77 @@
+package colinrozzi:genai-types;
+
+interface types {
+  use colinrozzi:mcp-protocol/types.{tool, json-data};
+
+  variant message-role {
+    user,
+    assistant,
+    system,
+  }
+
+  record tool-use {
+    tool-id: string,
+    tool-name: string,
+    tool-input: json-data,
+  }
+
+  record tool-result {
+    tool-use-id: string,
+    tool-content: json-data,
+    is-error: bool,
+  }
+
+  variant content-item {
+    text(string),
+    tool-use(tool-use),
+    tool-result(tool-result),
+  }
+
+  /// A message in a conversation
+  record message {
+    role: message-role,
+    content: list<content-item>,
+  }
+
+  variant tool-choice {
+    auto,
+    any,
+    none,
+    specific(string),
+  }
+
+  /// Request for completion
+  record completion-request {
+    model: string,
+    messages: list<message>,
+    max-tokens: u32,
+    temperature: option<f32>,
+    system: option<string>,
+    tools: option<list<tool>>,
+    tool-choice: option<tool-choice>,
+    disable-parallel-tool-use: option<bool>,
+  }
+
+  variant stop-reason {
+    end-turn,
+    max-tokens,
+    stop-sequence,
+    tool-use,
+  }
+
+  record usage {
+    input-tokens: u32,
+    output-tokens: u32,
+  }
+
+  /// Response from completion
+  record completion-response {
+    content: list<content-item>,
+    id: string,
+    model: string,
+    role: message-role,
+    stop-reason: stop-reason,
+    usage: usage,
+  }
+}
+
