@@ -472,6 +472,83 @@ pub struct OpenAIAudioParams {
     pub format: String, // "wav" | "mp3" | "flac" | "opus"
 }
 
+/// Splits a Theater message into one or more OpenAI messages
+/// This is needed because Theater can have multiple tool results in one message,
+/// but OpenAI/Moonshot requires each tool result to be a separate message
+fn split_message_for_openai(message: Message) -> Vec<OpenAIMessage> {
+    // Check if this message contains tool results
+    let tool_results: Vec<_> = message.content.iter()
+        .filter_map(|content| {
+            if let genai_types::MessageContent::ToolResult { tool_use_id, content, is_error } = content {
+                Some((tool_use_id.clone(), content.clone(), *is_error))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // If no tool results, convert normally (1:1)
+    if tool_results.is_empty() {
+        return vec![OpenAIMessage::from(message)];
+    }
+
+    // If tool results exist, we need to split them into separate messages
+    let mut result_messages = Vec::new();
+
+    // First, handle any non-tool-result content in the original message
+    let non_tool_content: Vec<_> = message.content.iter()
+        .filter(|content| !matches!(content, genai_types::MessageContent::ToolResult { .. }))
+        .cloned()
+        .collect();
+
+    if !non_tool_content.is_empty() {
+        // Create a message for the non-tool content
+        let non_tool_message = Message {
+            role: message.role.clone(),
+            content: non_tool_content,
+        };
+        result_messages.push(OpenAIMessage::from(non_tool_message));
+    }
+
+    // Now create separate messages for each tool result
+    for (tool_use_id, content, _is_error) in tool_results {
+        // Convert tool result content to OpenAI format
+        let mut openai_content = Vec::new();
+        for tool_content in content {
+            match tool_content {
+                mcp_protocol::tool::ToolContent::Text { text } => {
+                    openai_content.push(OpenAIMessageContent::Text { text });
+                }
+                // Handle other tool content types as needed
+                _ => {
+                    openai_content.push(OpenAIMessageContent::Text { 
+                        text: format!("{:?}", tool_content) 
+                    });
+                }
+            }
+        }
+
+        // Create the tool result message
+        let tool_message = OpenAIMessage {
+            role: "tool".to_string(),
+            content: if openai_content.is_empty() {
+                None
+            } else {
+                Some(OpenAIMessageContentFormat::Array(openai_content))
+            },
+            name: None,
+            tool_calls: None,
+            tool_call_id: Some(tool_use_id),
+            audio: None,
+            refusal: None,
+        };
+
+        result_messages.push(tool_message);
+    }
+
+    result_messages
+}
+
 impl From<CompletionRequest> for OpenAICompletionRequest {
     fn from(request: CompletionRequest) -> Self {
         Self {
@@ -479,7 +556,7 @@ impl From<CompletionRequest> for OpenAICompletionRequest {
             messages: request
                 .messages
                 .into_iter()
-                .map(OpenAIMessage::from)
+                .flat_map(split_message_for_openai)
                 .collect(),
             max_completion_tokens: Some(request.max_tokens),
             temperature: request.temperature,
