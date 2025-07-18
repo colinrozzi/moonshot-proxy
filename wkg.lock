@@ -3,6 +3,15 @@
 version = 1
 
 [[packages]]
+name = "colinrozzi:genai-types"
+registry = "wa.dev"
+
+[[packages.versions]]
+requirement = "*"
+version = "0.0.1"
+digest = "sha256:20f693e5b6e356d83465ef173c242767047eaab4385e8db0918c977219472863"
+
+[[packages]]
 name = "theater:simple"
 registry = "wa.dev"
 
