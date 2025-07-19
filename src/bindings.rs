@@ -39,9 +39,9 @@ pub mod colinrozzi {
             }
             #[derive(Clone, serde::Deserialize, serde::Serialize)]
             pub struct ToolUse {
-                pub tool_id: _rt::String,
-                pub tool_name: _rt::String,
-                pub tool_input: JsonData,
+                pub id: _rt::String,
+                pub name: _rt::String,
+                pub input: JsonData,
             }
             impl ::core::fmt::Debug for ToolUse {
                 fn fmt(
@@ -49,16 +49,16 @@ pub mod colinrozzi {
                     f: &mut ::core::fmt::Formatter<'_>,
                 ) -> ::core::fmt::Result {
                     f.debug_struct("ToolUse")
-                        .field("tool-id", &self.tool_id)
-                        .field("tool-name", &self.tool_name)
-                        .field("tool-input", &self.tool_input)
+                        .field("id", &self.id)
+                        .field("name", &self.name)
+                        .field("input", &self.input)
                         .finish()
                 }
             }
             #[derive(Clone, serde::Deserialize, serde::Serialize)]
             pub struct ToolResult {
                 pub tool_use_id: _rt::String,
-                pub tool_content: JsonData,
+                pub content: JsonData,
                 pub is_error: bool,
             }
             impl ::core::fmt::Debug for ToolResult {
@@ -68,40 +68,39 @@ pub mod colinrozzi {
                 ) -> ::core::fmt::Result {
                     f.debug_struct("ToolResult")
                         .field("tool-use-id", &self.tool_use_id)
-                        .field("tool-content", &self.tool_content)
+                        .field("content", &self.content)
                         .field("is-error", &self.is_error)
                         .finish()
                 }
             }
             #[derive(Clone, serde::Deserialize, serde::Serialize)]
-            pub enum ContentItem {
+            pub enum MessageContent {
                 Text(_rt::String),
                 ToolUse(ToolUse),
                 ToolResult(ToolResult),
             }
-            impl ::core::fmt::Debug for ContentItem {
+            impl ::core::fmt::Debug for MessageContent {
                 fn fmt(
                     &self,
                     f: &mut ::core::fmt::Formatter<'_>,
                 ) -> ::core::fmt::Result {
                     match self {
-                        ContentItem::Text(e) => {
-                            f.debug_tuple("ContentItem::Text").field(e).finish()
+                        MessageContent::Text(e) => {
+                            f.debug_tuple("MessageContent::Text").field(e).finish()
                         }
-                        ContentItem::ToolUse(e) => {
-                            f.debug_tuple("ContentItem::ToolUse").field(e).finish()
+                        MessageContent::ToolUse(e) => {
+                            f.debug_tuple("MessageContent::ToolUse").field(e).finish()
                         }
-                        ContentItem::ToolResult(e) => {
-                            f.debug_tuple("ContentItem::ToolResult").field(e).finish()
+                        MessageContent::ToolResult(e) => {
+                            f.debug_tuple("MessageContent::ToolResult").field(e).finish()
                         }
                     }
                 }
             }
-            /// A message in a conversation
             #[derive(Clone, serde::Deserialize, serde::Serialize)]
             pub struct Message {
                 pub role: MessageRole,
-                pub content: _rt::Vec<ContentItem>,
+                pub content: _rt::Vec<MessageContent>,
             }
             impl ::core::fmt::Debug for Message {
                 fn fmt(
@@ -136,7 +135,6 @@ pub mod colinrozzi {
                     }
                 }
             }
-            /// Request for completion
             #[derive(Clone, serde::Deserialize, serde::Serialize)]
             pub struct CompletionRequest {
                 pub model: _rt::String,
@@ -168,12 +166,13 @@ pub mod colinrozzi {
                         .finish()
                 }
             }
-            #[derive(Clone, Copy, serde::Deserialize, serde::Serialize)]
+            #[derive(Clone, serde::Deserialize, serde::Serialize)]
             pub enum StopReason {
                 EndTurn,
                 MaxTokens,
                 StopSequence,
                 ToolUse,
+                Other(_rt::String),
             }
             impl ::core::fmt::Debug for StopReason {
                 fn fmt(
@@ -192,6 +191,9 @@ pub mod colinrozzi {
                         }
                         StopReason::ToolUse => {
                             f.debug_tuple("StopReason::ToolUse").finish()
+                        }
+                        StopReason::Other(e) => {
+                            f.debug_tuple("StopReason::Other").field(e).finish()
                         }
                     }
                 }
@@ -213,10 +215,9 @@ pub mod colinrozzi {
                         .finish()
                 }
             }
-            /// Response from completion
             #[derive(Clone, serde::Deserialize, serde::Serialize)]
             pub struct CompletionResponse {
-                pub content: _rt::Vec<ContentItem>,
+                pub content: _rt::Vec<MessageContent>,
                 pub id: _rt::String,
                 pub model: _rt::String,
                 pub role: MessageRole,
@@ -236,6 +237,91 @@ pub mod colinrozzi {
                         .field("stop-reason", &self.stop_reason)
                         .field("usage", &self.usage)
                         .finish()
+                }
+            }
+            #[repr(C)]
+            #[derive(Clone, Copy, serde::Deserialize, serde::Serialize)]
+            pub struct ModelPricing {
+                pub input_price: f64,
+                pub output_price: f64,
+            }
+            impl ::core::fmt::Debug for ModelPricing {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.debug_struct("ModelPricing")
+                        .field("input-price", &self.input_price)
+                        .field("output-price", &self.output_price)
+                        .finish()
+                }
+            }
+            #[derive(Clone, serde::Deserialize, serde::Serialize)]
+            pub struct ModelInfo {
+                pub id: _rt::String,
+                pub display_name: _rt::String,
+                pub max_tokens: u32,
+                pub provider: _rt::String,
+                pub pricing: Option<ModelPricing>,
+            }
+            impl ::core::fmt::Debug for ModelInfo {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.debug_struct("ModelInfo")
+                        .field("id", &self.id)
+                        .field("display-name", &self.display_name)
+                        .field("max-tokens", &self.max_tokens)
+                        .field("provider", &self.provider)
+                        .field("pricing", &self.pricing)
+                        .finish()
+                }
+            }
+            #[derive(Clone, serde::Deserialize, serde::Serialize)]
+            pub enum ProxyRequest {
+                ListModels,
+                GenerateCompletion(CompletionRequest),
+            }
+            impl ::core::fmt::Debug for ProxyRequest {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    match self {
+                        ProxyRequest::ListModels => {
+                            f.debug_tuple("ProxyRequest::ListModels").finish()
+                        }
+                        ProxyRequest::GenerateCompletion(e) => {
+                            f.debug_tuple("ProxyRequest::GenerateCompletion")
+                                .field(e)
+                                .finish()
+                        }
+                    }
+                }
+            }
+            #[derive(Clone, serde::Deserialize, serde::Serialize)]
+            pub enum ProxyResponse {
+                ListModels(_rt::Vec<ModelInfo>),
+                Completion(CompletionResponse),
+                Error(_rt::String),
+            }
+            impl ::core::fmt::Debug for ProxyResponse {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    match self {
+                        ProxyResponse::ListModels(e) => {
+                            f.debug_tuple("ProxyResponse::ListModels").field(e).finish()
+                        }
+                        ProxyResponse::Completion(e) => {
+                            f.debug_tuple("ProxyResponse::Completion").field(e).finish()
+                        }
+                        ProxyResponse::Error(e) => {
+                            f.debug_tuple("ProxyResponse::Error").field(e).finish()
+                        }
+                    }
                 }
             }
         }
@@ -362,26 +448,86 @@ pub mod colinrozzi {
                 }
             }
             #[derive(Clone, serde::Deserialize, serde::Serialize)]
-            pub struct ContentItem {
+            pub struct TextContent {
                 pub type_: _rt::String,
-                pub text: Option<_rt::String>,
-                pub data: Option<_rt::String>,
-                pub mime_type: Option<_rt::String>,
-                pub uri: Option<_rt::String>,
+                pub text: _rt::String,
                 pub annotations: Option<JsonData>,
                 pub meta: Option<JsonData>,
             }
-            impl ::core::fmt::Debug for ContentItem {
+            impl ::core::fmt::Debug for TextContent {
                 fn fmt(
                     &self,
                     f: &mut ::core::fmt::Formatter<'_>,
                 ) -> ::core::fmt::Result {
-                    f.debug_struct("ContentItem")
+                    f.debug_struct("TextContent")
                         .field("type", &self.type_)
                         .field("text", &self.text)
+                        .field("annotations", &self.annotations)
+                        .field("meta", &self.meta)
+                        .finish()
+                }
+            }
+            #[derive(Clone, serde::Deserialize, serde::Serialize)]
+            pub struct ImageContent {
+                pub type_: _rt::String,
+                pub data: _rt::String,
+                pub mime_type: Option<_rt::String>,
+                pub annotations: Option<JsonData>,
+                pub meta: Option<JsonData>,
+            }
+            impl ::core::fmt::Debug for ImageContent {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.debug_struct("ImageContent")
+                        .field("type", &self.type_)
                         .field("data", &self.data)
                         .field("mime-type", &self.mime_type)
+                        .field("annotations", &self.annotations)
+                        .field("meta", &self.meta)
+                        .finish()
+                }
+            }
+            #[derive(Clone, serde::Deserialize, serde::Serialize)]
+            pub struct AudioContent {
+                pub type_: _rt::String,
+                pub data: _rt::String,
+                pub mime_type: Option<_rt::String>,
+                pub annotations: Option<JsonData>,
+                pub meta: Option<JsonData>,
+            }
+            impl ::core::fmt::Debug for AudioContent {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.debug_struct("AudioContent")
+                        .field("type", &self.type_)
+                        .field("data", &self.data)
+                        .field("mime-type", &self.mime_type)
+                        .field("annotations", &self.annotations)
+                        .field("meta", &self.meta)
+                        .finish()
+                }
+            }
+            #[derive(Clone, serde::Deserialize, serde::Serialize)]
+            pub struct ResourceContent {
+                pub uri: _rt::String,
+                pub mime_type: Option<_rt::String>,
+                pub size: Option<u64>,
+                pub annotations: Option<JsonData>,
+                pub meta: Option<JsonData>,
+            }
+            impl ::core::fmt::Debug for ResourceContent {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.debug_struct("ResourceContent")
                         .field("uri", &self.uri)
+                        .field("mime-type", &self.mime_type)
+                        .field("size", &self.size)
                         .field("annotations", &self.annotations)
                         .field("meta", &self.meta)
                         .finish()
@@ -428,26 +574,6 @@ pub mod colinrozzi {
                 }
             }
             #[derive(Clone, serde::Deserialize, serde::Serialize)]
-            pub struct ToolCallResult {
-                pub content: _rt::Vec<ContentItem>,
-                pub structured_content: Option<JsonData>,
-                pub is_error: Option<bool>,
-                pub meta: Option<JsonData>,
-            }
-            impl ::core::fmt::Debug for ToolCallResult {
-                fn fmt(
-                    &self,
-                    f: &mut ::core::fmt::Formatter<'_>,
-                ) -> ::core::fmt::Result {
-                    f.debug_struct("ToolCallResult")
-                        .field("content", &self.content)
-                        .field("structured-content", &self.structured_content)
-                        .field("is-error", &self.is_error)
-                        .field("meta", &self.meta)
-                        .finish()
-                }
-            }
-            #[derive(Clone, serde::Deserialize, serde::Serialize)]
             pub struct McpResource {
                 pub name: _rt::String,
                 pub description: Option<_rt::String>,
@@ -467,6 +593,60 @@ pub mod colinrozzi {
                         .field("uri", &self.uri)
                         .field("mime-type", &self.mime_type)
                         .field("annotations", &self.annotations)
+                        .field("meta", &self.meta)
+                        .finish()
+                }
+            }
+            #[derive(Clone, serde::Deserialize, serde::Serialize)]
+            pub enum ContentItem {
+                Text(Option<TextContent>),
+                Image(Option<ImageContent>),
+                Audio(Option<AudioContent>),
+                Resource(Option<_rt::String>),
+                EmbeddedResource(Option<McpResource>),
+            }
+            impl ::core::fmt::Debug for ContentItem {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    match self {
+                        ContentItem::Text(e) => {
+                            f.debug_tuple("ContentItem::Text").field(e).finish()
+                        }
+                        ContentItem::Image(e) => {
+                            f.debug_tuple("ContentItem::Image").field(e).finish()
+                        }
+                        ContentItem::Audio(e) => {
+                            f.debug_tuple("ContentItem::Audio").field(e).finish()
+                        }
+                        ContentItem::Resource(e) => {
+                            f.debug_tuple("ContentItem::Resource").field(e).finish()
+                        }
+                        ContentItem::EmbeddedResource(e) => {
+                            f.debug_tuple("ContentItem::EmbeddedResource")
+                                .field(e)
+                                .finish()
+                        }
+                    }
+                }
+            }
+            #[derive(Clone, serde::Deserialize, serde::Serialize)]
+            pub struct ToolCallResult {
+                pub content: _rt::Vec<ContentItem>,
+                pub structured_content: Option<JsonData>,
+                pub is_error: Option<bool>,
+                pub meta: Option<JsonData>,
+            }
+            impl ::core::fmt::Debug for ToolCallResult {
+                fn fmt(
+                    &self,
+                    f: &mut ::core::fmt::Formatter<'_>,
+                ) -> ::core::fmt::Result {
+                    f.debug_struct("ToolCallResult")
+                        .field("content", &self.content)
+                        .field("structured-content", &self.structured_content)
+                        .field("is-error", &self.is_error)
                         .field("meta", &self.meta)
                         .finish()
                 }
@@ -3225,9 +3405,9 @@ pub(crate) use __export_default_impl as export;
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 3787] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xcd\x1c\x01A\x02\x01\
-A\x1d\x01B/\x01p}\x04\0\x09json-data\x03\0\0\x01s\x04\0\x0eprogress-token\x03\0\x02\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 4289] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xc3\x20\x01A\x02\x01\
+A\x1d\x01B<\x01p}\x04\0\x09json-data\x03\0\0\x01s\x04\0\x0eprogress-token\x03\0\x02\
 \x01s\x04\0\x06cursor\x03\0\x04\x01s\x04\0\x0arequest-id\x03\0\x06\x01ks\x01k\x01\
 \x01r\x03\x04names\x0bdescription\x08\x04meta\x09\x04\0\x0dbase-metadata\x03\0\x0a\
 \x01r\x04\x07jsonrpcs\x06methods\x06params\x09\x02id\x07\x04\0\x0fjsonrpc-reques\
@@ -3235,71 +3415,81 @@ t\x03\0\x0c\x01r\x03\x07jsonrpcs\x02id\x07\x06result\x01\x04\0\x10jsonrpc-respon
 se\x03\0\x0e\x01r\x03\x07jsonrpcs\x06methods\x06params\x09\x04\0\x14jsonrpc-noti\
 fication\x03\0\x10\x01r\x03\x04codez\x07messages\x04data\x09\x04\0\x0cerror-obje\
 ct\x03\0\x12\x01r\x03\x07jsonrpcs\x02id\x07\x05error\x13\x04\0\x0djsonrpc-error\x03\
-\0\x14\x01r\x07\x04types\x04text\x08\x04data\x08\x09mime-type\x08\x03uri\x08\x0b\
-annotations\x09\x04meta\x09\x04\0\x0ccontent-item\x03\0\x16\x01r\x06\x04names\x0b\
-description\x08\x0cinput-schema\x01\x0doutput-schema\x09\x0bannotations\x09\x04m\
-eta\x09\x04\0\x04tool\x03\0\x18\x01r\x02\x04names\x09arguments\x01\x04\0\x10tool\
--call-params\x03\0\x1a\x01p\x17\x01k\x7f\x01r\x04\x07content\x1c\x12structured-c\
-ontent\x09\x08is-error\x1d\x04meta\x09\x04\0\x10tool-call-result\x03\0\x1e\x01r\x06\
-\x04names\x0bdescription\x08\x03uris\x09mime-type\x08\x0bannotations\x09\x04meta\
-\x09\x04\0\x0cmcp-resource\x03\0\x20\x01r\x04\x03uris\x09mime-type\x08\x07conten\
-t\x17\x04meta\x09\x04\0\x15mcp-resource-contents\x03\0\"\x01k\x05\x01r\x02\x0bne\
-xt-cursor$\x04meta\x09\x04\0\x10paginated-result\x03\0%\x01p\x19\x01r\x03\x05too\
-ls'\x0bnext-cursor$\x04meta\x09\x04\0\x11list-tools-result\x03\0(\x01p!\x01r\x03\
-\x09resources*\x0bnext-cursor$\x04meta\x09\x04\0\x15list-resources-result\x03\0+\
-\x01r\x02\x06cursor$\x04meta\x09\x04\0\x11paginated-request\x03\0-\x03\0\x1dcoli\
-nrozzi:mcp-protocol/types\x05\0\x02\x03\0\0\x04tool\x02\x03\0\0\x09json-data\x01\
-B\x20\x02\x03\x02\x01\x01\x04\0\x04tool\x03\0\0\x02\x03\x02\x01\x02\x04\0\x09jso\
-n-data\x03\0\x02\x01q\x03\x04user\0\0\x09assistant\0\0\x06system\0\0\x04\0\x0cme\
-ssage-role\x03\0\x04\x01r\x03\x07tool-ids\x09tool-names\x0atool-input\x03\x04\0\x08\
-tool-use\x03\0\x06\x01r\x03\x0btool-use-ids\x0ctool-content\x03\x08is-error\x7f\x04\
-\0\x0btool-result\x03\0\x08\x01q\x03\x04text\x01s\0\x08tool-use\x01\x07\0\x0btoo\
-l-result\x01\x09\0\x04\0\x0ccontent-item\x03\0\x0a\x01p\x0b\x01r\x02\x04role\x05\
-\x07content\x0c\x04\0\x07message\x03\0\x0d\x01q\x04\x04auto\0\0\x03any\0\0\x04no\
-ne\0\0\x08specific\x01s\0\x04\0\x0btool-choice\x03\0\x0f\x01p\x0e\x01kv\x01ks\x01\
-p\x01\x01k\x14\x01k\x10\x01k\x7f\x01r\x08\x05models\x08messages\x11\x0amax-token\
-sy\x0btemperature\x12\x06system\x13\x05tools\x15\x0btool-choice\x16\x19disable-p\
-arallel-tool-use\x17\x04\0\x12completion-request\x03\0\x18\x01q\x04\x08end-turn\0\
-\0\x0amax-tokens\0\0\x0dstop-sequence\0\0\x08tool-use\0\0\x04\0\x0bstop-reason\x03\
-\0\x1a\x01r\x02\x0cinput-tokensy\x0doutput-tokensy\x04\0\x05usage\x03\0\x1c\x01r\
-\x06\x07content\x0c\x02ids\x05models\x04role\x05\x0bstop-reason\x1b\x05usage\x1d\
-\x04\0\x13completion-response\x03\0\x1e\x03\0\x1ccolinrozzi:genai-types/types\x05\
-\x03\x01B\x16\x01s\x04\0\x08actor-id\x03\0\0\x01s\x04\0\x0achannel-id\x03\0\x02\x01\
-p}\x01k\x04\x01r\x02\x08accepted\x7f\x07message\x05\x04\0\x0echannel-accept\x03\0\
-\x06\x01kw\x01r\x03\x0aevent-types\x06parent\x08\x04data\x04\x04\0\x05event\x03\0\
-\x09\x01r\x02\x04hashw\x05event\x0a\x04\0\x0ameta-event\x03\0\x0b\x01p\x0c\x01r\x01\
-\x06events\x0d\x04\0\x05chain\x03\0\x0e\x01r\x05\x04hash\x04\x0bparent-hash\x05\x0a\
-event-types\x04data\x04\x09timestampw\x04\0\x0bchain-event\x03\0\x10\x01m\x09\x11\
-operation-timeout\x0echannel-closed\x0dshutting-down\x12function-not-found\x0dty\
-pe-mismatch\x08internal\x13serialization-error\x16update-component-error\x06paus\
-ed\x04\0\x0ewit-error-type\x03\0\x12\x01r\x02\x0aerror-type\x13\x04data\x05\x04\0\
-\x0fwit-actor-error\x03\0\x14\x03\0\x14theater:simple/types\x05\x04\x02\x03\0\x02\
-\x05chain\x02\x03\0\x02\x08actor-id\x01B\x0d\x02\x03\x02\x01\x05\x04\0\x05chain\x03\
-\0\0\x02\x03\x02\x01\x06\x04\0\x08actor-id\x03\0\x02\x01@\x01\x03msgs\x01\0\x04\0\
-\x03log\x01\x04\x01@\0\0\x01\x04\0\x09get-chain\x01\x05\x01p}\x01k\x06\x01j\0\x01\
-s\x01@\x01\x04data\x07\0\x08\x04\0\x08shutdown\x01\x09\x03\0\x16theater:simple/r\
-untime\x05\x07\x01B\x09\x01ks\x01@\x01\x04names\0\0\x04\0\x07get-var\x01\x01\x01\
-o\x02ss\x01p\x02\x01@\0\0\x03\x04\0\x09list-vars\x01\x04\x01@\x01\x04names\0\x7f\
-\x04\0\x06exists\x01\x05\x03\0\x1atheater:simple/environment\x05\x08\x01B\x07\x01\
-@\0\0w\x04\0\x03now\x01\0\x01j\0\x01s\x01@\x01\x08durationw\0\x01\x04\0\x05sleep\
-\x01\x02\x01@\x01\x09timestampw\0\x01\x04\0\x08deadline\x01\x03\x03\0\x15theater\
-:simple/timing\x05\x09\x01B\x14\x01p}\x04\0\x05bytes\x03\0\0\x01o\x02ss\x01p\x02\
-\x01k\x01\x01r\x04\x06methods\x03uris\x07headers\x03\x04body\x04\x04\0\x0chttp-r\
-equest\x03\0\x05\x01r\x03\x06status{\x07headers\x03\x04body\x04\x04\0\x0dhttp-re\
-sponse\x03\0\x07\x01r\x02\x09cert-paths\x08key-paths\x04\0\x0atls-config\x03\0\x09\
-\x01k{\x01ks\x01k\x0a\x01r\x03\x04port\x0b\x04host\x0c\x0atls-config\x0d\x04\0\x0d\
-server-config\x03\0\x0e\x01r\x07\x02idw\x04port{\x04hosts\x07running\x7f\x0crout\
-es-county\x10middleware-county\x11websocket-enabled\x7f\x04\0\x0bserver-info\x03\
-\0\x10\x01r\x02\x07proceed\x7f\x07request\x06\x04\0\x11middleware-result\x03\0\x12\
-\x03\0\x19theater:simple/http-types\x05\x0a\x02\x03\0\x06\x0chttp-request\x02\x03\
-\0\x06\x0dhttp-response\x01B\x07\x02\x03\x02\x01\x0b\x04\0\x0chttp-request\x03\0\
-\0\x02\x03\x02\x01\x0c\x04\0\x0dhttp-response\x03\0\x02\x01j\x01\x03\x01s\x01@\x01\
-\x03req\x01\0\x04\x04\0\x09send-http\x01\x05\x03\0\x1atheater:simple/http-client\
-\x05\x0d\x02\x03\0\x02\x05event\x02\x03\0\x02\x0achannel-id\x02\x03\0\x02\x0echa\
-nnel-accept\x01B\x1d\x02\x03\x02\x01\x0e\x04\0\x05event\x03\0\0\x02\x03\x02\x01\x0f\
-\x04\0\x0achannel-id\x03\0\x02\x02\x03\x02\x01\x10\x04\0\x0echannel-accept\x03\0\
-\x04\x01p}\x01k\x06\x01o\x01\x06\x01o\x01\x07\x01j\x01\x09\x01s\x01@\x02\x05stat\
-e\x07\x06params\x08\0\x0a\x04\0\x0bhandle-send\x01\x0b\x01o\x02s\x06\x01o\x02\x07\
+\0\x14\x01r\x04\x04types\x04texts\x0bannotations\x09\x04meta\x09\x04\0\x0ctext-c\
+ontent\x03\0\x16\x01r\x05\x04types\x04datas\x09mime-type\x08\x0bannotations\x09\x04\
+meta\x09\x04\0\x0dimage-content\x03\0\x18\x01r\x05\x04types\x04datas\x09mime-typ\
+e\x08\x0bannotations\x09\x04meta\x09\x04\0\x0daudio-content\x03\0\x1a\x01kw\x01r\
+\x05\x03uris\x09mime-type\x08\x04size\x1c\x0bannotations\x09\x04meta\x09\x04\0\x10\
+resource-content\x03\0\x1d\x01r\x06\x04names\x0bdescription\x08\x0cinput-schema\x01\
+\x0doutput-schema\x09\x0bannotations\x09\x04meta\x09\x04\0\x04tool\x03\0\x1f\x01\
+r\x02\x04names\x09arguments\x01\x04\0\x10tool-call-params\x03\0!\x01r\x06\x04nam\
+es\x0bdescription\x08\x03uris\x09mime-type\x08\x0bannotations\x09\x04meta\x09\x04\
+\0\x0cmcp-resource\x03\0#\x01k\x17\x01k\x19\x01k\x1b\x01k$\x01q\x05\x04text\x01%\
+\0\x05image\x01&\0\x05audio\x01'\0\x08resource\x01\x08\0\x11embedded-resource\x01\
+(\0\x04\0\x0ccontent-item\x03\0)\x01p*\x01k\x7f\x01r\x04\x07content+\x12structur\
+ed-content\x09\x08is-error,\x04meta\x09\x04\0\x10tool-call-result\x03\0-\x01r\x04\
+\x03uris\x09mime-type\x08\x07content*\x04meta\x09\x04\0\x15mcp-resource-contents\
+\x03\0/\x01k\x05\x01r\x02\x0bnext-cursor1\x04meta\x09\x04\0\x10paginated-result\x03\
+\02\x01p\x20\x01r\x03\x05tools4\x0bnext-cursor1\x04meta\x09\x04\0\x11list-tools-\
+result\x03\05\x01p$\x01r\x03\x09resources7\x0bnext-cursor1\x04meta\x09\x04\0\x15\
+list-resources-result\x03\08\x01r\x02\x06cursor1\x04meta\x09\x04\0\x11paginated-\
+request\x03\0:\x03\0\x1dcolinrozzi:mcp-protocol/types\x05\0\x02\x03\0\0\x04tool\x02\
+\x03\0\0\x09json-data\x01B*\x02\x03\x02\x01\x01\x04\0\x04tool\x03\0\0\x02\x03\x02\
+\x01\x02\x04\0\x09json-data\x03\0\x02\x01q\x03\x04user\0\0\x09assistant\0\0\x06s\
+ystem\0\0\x04\0\x0cmessage-role\x03\0\x04\x01r\x03\x02ids\x04names\x05input\x03\x04\
+\0\x08tool-use\x03\0\x06\x01r\x03\x0btool-use-ids\x07content\x03\x08is-error\x7f\
+\x04\0\x0btool-result\x03\0\x08\x01q\x03\x04text\x01s\0\x08tool-use\x01\x07\0\x0b\
+tool-result\x01\x09\0\x04\0\x0fmessage-content\x03\0\x0a\x01p\x0b\x01r\x02\x04ro\
+le\x05\x07content\x0c\x04\0\x07message\x03\0\x0d\x01q\x04\x04auto\0\0\x03any\0\0\
+\x04none\0\0\x08specific\x01s\0\x04\0\x0btool-choice\x03\0\x0f\x01p\x0e\x01kv\x01\
+ks\x01p\x01\x01k\x14\x01k\x10\x01k\x7f\x01r\x08\x05models\x08messages\x11\x0amax\
+-tokensy\x0btemperature\x12\x06system\x13\x05tools\x15\x0btool-choice\x16\x19dis\
+able-parallel-tool-use\x17\x04\0\x12completion-request\x03\0\x18\x01q\x05\x08end\
+-turn\0\0\x0amax-tokens\0\0\x0dstop-sequence\0\0\x08tool-use\0\0\x05other\x01s\0\
+\x04\0\x0bstop-reason\x03\0\x1a\x01r\x02\x0cinput-tokensy\x0doutput-tokensy\x04\0\
+\x05usage\x03\0\x1c\x01r\x06\x07content\x0c\x02ids\x05models\x04role\x05\x0bstop\
+-reason\x1b\x05usage\x1d\x04\0\x13completion-response\x03\0\x1e\x01r\x02\x0binpu\
+t-priceu\x0coutput-priceu\x04\0\x0dmodel-pricing\x03\0\x20\x01k!\x01r\x05\x02ids\
+\x0cdisplay-names\x0amax-tokensy\x08providers\x07pricing\"\x04\0\x0amodel-info\x03\
+\0#\x01q\x02\x0blist-models\0\0\x13generate-completion\x01\x19\0\x04\0\x0dproxy-\
+request\x03\0%\x01p$\x01q\x03\x0blist-models\x01'\0\x0acompletion\x01\x1f\0\x05e\
+rror\x01s\0\x04\0\x0eproxy-response\x03\0(\x03\0\x1ccolinrozzi:genai-types/types\
+\x05\x03\x01B\x16\x01s\x04\0\x08actor-id\x03\0\0\x01s\x04\0\x0achannel-id\x03\0\x02\
+\x01p}\x01k\x04\x01r\x02\x08accepted\x7f\x07message\x05\x04\0\x0echannel-accept\x03\
+\0\x06\x01kw\x01r\x03\x0aevent-types\x06parent\x08\x04data\x04\x04\0\x05event\x03\
+\0\x09\x01r\x02\x04hashw\x05event\x0a\x04\0\x0ameta-event\x03\0\x0b\x01p\x0c\x01\
+r\x01\x06events\x0d\x04\0\x05chain\x03\0\x0e\x01r\x05\x04hash\x04\x0bparent-hash\
+\x05\x0aevent-types\x04data\x04\x09timestampw\x04\0\x0bchain-event\x03\0\x10\x01\
+m\x09\x11operation-timeout\x0echannel-closed\x0dshutting-down\x12function-not-fo\
+und\x0dtype-mismatch\x08internal\x13serialization-error\x16update-component-erro\
+r\x06paused\x04\0\x0ewit-error-type\x03\0\x12\x01r\x02\x0aerror-type\x13\x04data\
+\x05\x04\0\x0fwit-actor-error\x03\0\x14\x03\0\x14theater:simple/types\x05\x04\x02\
+\x03\0\x02\x05chain\x02\x03\0\x02\x08actor-id\x01B\x0d\x02\x03\x02\x01\x05\x04\0\
+\x05chain\x03\0\0\x02\x03\x02\x01\x06\x04\0\x08actor-id\x03\0\x02\x01@\x01\x03ms\
+gs\x01\0\x04\0\x03log\x01\x04\x01@\0\0\x01\x04\0\x09get-chain\x01\x05\x01p}\x01k\
+\x06\x01j\0\x01s\x01@\x01\x04data\x07\0\x08\x04\0\x08shutdown\x01\x09\x03\0\x16t\
+heater:simple/runtime\x05\x07\x01B\x09\x01ks\x01@\x01\x04names\0\0\x04\0\x07get-\
+var\x01\x01\x01o\x02ss\x01p\x02\x01@\0\0\x03\x04\0\x09list-vars\x01\x04\x01@\x01\
+\x04names\0\x7f\x04\0\x06exists\x01\x05\x03\0\x1atheater:simple/environment\x05\x08\
+\x01B\x07\x01@\0\0w\x04\0\x03now\x01\0\x01j\0\x01s\x01@\x01\x08durationw\0\x01\x04\
+\0\x05sleep\x01\x02\x01@\x01\x09timestampw\0\x01\x04\0\x08deadline\x01\x03\x03\0\
+\x15theater:simple/timing\x05\x09\x01B\x14\x01p}\x04\0\x05bytes\x03\0\0\x01o\x02\
+ss\x01p\x02\x01k\x01\x01r\x04\x06methods\x03uris\x07headers\x03\x04body\x04\x04\0\
+\x0chttp-request\x03\0\x05\x01r\x03\x06status{\x07headers\x03\x04body\x04\x04\0\x0d\
+http-response\x03\0\x07\x01r\x02\x09cert-paths\x08key-paths\x04\0\x0atls-config\x03\
+\0\x09\x01k{\x01ks\x01k\x0a\x01r\x03\x04port\x0b\x04host\x0c\x0atls-config\x0d\x04\
+\0\x0dserver-config\x03\0\x0e\x01r\x07\x02idw\x04port{\x04hosts\x07running\x7f\x0c\
+routes-county\x10middleware-county\x11websocket-enabled\x7f\x04\0\x0bserver-info\
+\x03\0\x10\x01r\x02\x07proceed\x7f\x07request\x06\x04\0\x11middleware-result\x03\
+\0\x12\x03\0\x19theater:simple/http-types\x05\x0a\x02\x03\0\x06\x0chttp-request\x02\
+\x03\0\x06\x0dhttp-response\x01B\x07\x02\x03\x02\x01\x0b\x04\0\x0chttp-request\x03\
+\0\0\x02\x03\x02\x01\x0c\x04\0\x0dhttp-response\x03\0\x02\x01j\x01\x03\x01s\x01@\
+\x01\x03req\x01\0\x04\x04\0\x09send-http\x01\x05\x03\0\x1atheater:simple/http-cl\
+ient\x05\x0d\x02\x03\0\x02\x05event\x02\x03\0\x02\x0achannel-id\x02\x03\0\x02\x0e\
+channel-accept\x01B\x1d\x02\x03\x02\x01\x0e\x04\0\x05event\x03\0\0\x02\x03\x02\x01\
+\x0f\x04\0\x0achannel-id\x03\0\x02\x02\x03\x02\x01\x10\x04\0\x0echannel-accept\x03\
+\0\x04\x01p}\x01k\x06\x01o\x01\x06\x01o\x01\x07\x01j\x01\x09\x01s\x01@\x02\x05st\
+ate\x07\x06params\x08\0\x0a\x04\0\x0bhandle-send\x01\x0b\x01o\x02s\x06\x01o\x02\x07\
 \x09\x01j\x01\x0d\x01s\x01@\x02\x05state\x07\x06params\x0c\0\x0e\x04\0\x0ehandle\
 -request\x01\x0f\x01o\x01\x05\x01o\x02\x07\x10\x01j\x01\x11\x01s\x01@\x02\x05sta\
 te\x07\x06params\x0c\0\x12\x04\0\x13handle-channel-open\x01\x13\x01o\x02\x03\x06\

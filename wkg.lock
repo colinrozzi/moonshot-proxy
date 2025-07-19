@@ -7,9 +7,9 @@ name = "colinrozzi:genai-types"
 registry = "wa.dev"
 
 [[packages.versions]]
-requirement = "*"
-version = "0.0.1"
-digest = "sha256:20f693e5b6e356d83465ef173c242767047eaab4385e8db0918c977219472863"
+requirement = "^0.0.6"
+version = "0.0.6"
+digest = "sha256:bd2f842847da2ddc73213ba98e126be16ffe34f75d6f7a633fe8371c7e77d11f"
 
 [[packages]]
 name = "theater:simple"

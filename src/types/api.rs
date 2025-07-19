@@ -1,7 +1,9 @@
-use genai_types::{
-    CompletionRequest, Message, MessageContent, Usage,
+use crate::bindings::colinrozzi::genai_types::types::{
+    CompletionRequest, Message, MessageContent, MessageRole, ToolResult, ToolUse, Usage,
 };
-use mcp_protocol::tool::ToolContent;
+use crate::bindings::colinrozzi::mcp_protocol::types::ContentItem;
+use crate::bindings::theater::simple::runtime::log;
+//use mcp_protocol::tool::ToolContent;
 use serde::{Deserialize, Deserializer, Serialize};
 
 // Helper enum to handle both string and array content formats
@@ -18,11 +20,11 @@ impl<'de> Deserialize<'de> for OpenAIMessageContentFormat {
     {
         use serde_json::Value;
         let value = Value::deserialize(deserializer)?;
-        
+
         match value {
             Value::String(s) => Ok(OpenAIMessageContentFormat::String(s)),
             Value::Array(_) => {
-                let content_array: Vec<OpenAIMessageContent> = 
+                let content_array: Vec<OpenAIMessageContent> =
                     serde_json::from_value(value).map_err(serde::de::Error::custom)?;
                 Ok(OpenAIMessageContentFormat::Array(content_array))
             }
@@ -52,32 +54,44 @@ impl OpenAIMessageContentFormat {
             OpenAIMessageContentFormat::Array(arr) => arr,
         }
     }
-    
+
     // Provider-aware serialization
-    pub fn serialize_for_provider(&self, format: &crate::types::state::ContentFormat) -> serde_json::Value {
+    pub fn serialize_for_provider(
+        &self,
+        format: &crate::types::state::ContentFormat,
+    ) -> serde_json::Value {
         match (self, format) {
-            (OpenAIMessageContentFormat::String(s), _) => {
-                serde_json::Value::String(s.clone())
-            }
-            (OpenAIMessageContentFormat::Array(arr), crate::types::state::ContentFormat::String) => {
+            (OpenAIMessageContentFormat::String(s), _) => serde_json::Value::String(s.clone()),
+            (
+                OpenAIMessageContentFormat::Array(arr),
+                crate::types::state::ContentFormat::String,
+            ) => {
                 // Convert array to string for legacy providers that don't support structured content
                 let mut text_parts = Vec::new();
-                
+
                 for content in arr {
                     match content {
                         OpenAIMessageContent::Text { text } => {
                             text_parts.push(text.clone());
                         }
-                        OpenAIMessageContent::ToolResult { tool_use_id: _, content, is_error } => {
+                        OpenAIMessageContent::ToolResult {
+                            tool_use_id: _,
+                            content,
+                            is_error,
+                        } => {
                             // Convert tool results to plain text for legacy providers
-                            let result_text = content.iter()
+                            let result_text = content
+                                .iter()
                                 .filter_map(|c| match c {
-                                    mcp_protocol::tool::ToolContent::Text { text } => Some(text.as_str()),
+                                    ContentItem::Text(text_content) => match text_content {
+                                        Some(text_content) => Some(text_content.text.clone()),
+                                        None => None,
+                                    },
                                     _ => None,
                                 })
                                 .collect::<Vec<_>>()
                                 .join("\n");
-                            
+
                             if *is_error == Some(true) {
                                 text_parts.push(format!("Error: {}", result_text));
                             } else {
@@ -90,7 +104,7 @@ impl OpenAIMessageContentFormat {
                         }
                     }
                 }
-                
+
                 let final_text = text_parts.join("\n").trim().to_string();
                 if final_text.is_empty() {
                     serde_json::Value::String("[No content]".to_string())
@@ -113,9 +127,7 @@ pub enum OpenAIMessageContent {
     Text { text: String },
 
     #[serde(rename = "image_url")]
-    ImageUrl { 
-        image_url: OpenAIImageUrl,
-    },
+    ImageUrl { image_url: OpenAIImageUrl },
 
     #[serde(rename = "audio")]
     Audio {
@@ -133,7 +145,7 @@ pub enum OpenAIMessageContent {
     #[serde(rename = "tool_result")]
     ToolResult {
         tool_use_id: String,
-        content: Vec<ToolContent>,
+        content: Vec<ContentItem>,
         #[serde(skip_serializing_if = "Option::is_none")]
         is_error: Option<bool>,
     },
@@ -148,26 +160,36 @@ pub struct OpenAIImageUrl {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OpenAIInputAudio {
-    pub data: String, // base64 encoded audio
+    pub data: String,   // base64 encoded audio
     pub format: String, // "wav", "mp3", etc.
 }
 
 impl From<MessageContent> for OpenAIMessageContent {
     fn from(content: MessageContent) -> Self {
         match content {
-            MessageContent::Text { text } => OpenAIMessageContent::Text { text },
-            MessageContent::ToolUse { id, name, input } => {
-                OpenAIMessageContent::ToolUse { id, name, input }
-            }
-            MessageContent::ToolResult {
-                tool_use_id,
-                content,
-                is_error,
-            } => OpenAIMessageContent::ToolResult {
-                tool_use_id,
-                content,
-                is_error,
+            MessageContent::Text(text) => OpenAIMessageContent::Text { text },
+            MessageContent::ToolUse(ToolUse { id, name, input }) => OpenAIMessageContent::ToolUse {
+                id,
+                name,
+                input: input.into(),
             },
+            MessageContent::ToolResult(ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+            }) => {
+                let openai_content: Vec<ContentItem> = serde_json::from_slice(&content)
+                    .unwrap_or_else(|e| {
+                        log(&format!("Failed to deserialize tool result content: {}", e));
+                        vec![]
+                    });
+
+                OpenAIMessageContent::ToolResult {
+                    tool_use_id,
+                    content: openai_content,
+                    is_error: Some(is_error),
+                }
+            }
         }
     }
 }
@@ -228,9 +250,10 @@ pub struct OpenAIAudio {
 impl From<Message> for OpenAIMessage {
     fn from(message: Message) -> Self {
         // Check if this message contains tool results - if so, it should be role "tool"
-        let has_tool_results = message.content.iter().any(|content| {
-            matches!(content, genai_types::MessageContent::ToolResult { .. })
-        });
+        let has_tool_results = message
+            .content
+            .iter()
+            .any(|content| matches!(content, MessageContent::ToolResult { .. }));
 
         // Check if this message contains tool calls - if so, extract them
         let mut tool_calls = Vec::new();
@@ -239,7 +262,7 @@ impl From<Message> for OpenAIMessage {
 
         for content in message.content {
             match content {
-                genai_types::MessageContent::ToolUse { id, name, input } => {
+                MessageContent::ToolUse(ToolUse { id, name, input }) => {
                     tool_calls.push(OpenAIToolCall {
                         id: id.clone(),
                         tool_type: "function".to_string(),
@@ -249,23 +272,21 @@ impl From<Message> for OpenAIMessage {
                         },
                     });
                 }
-                genai_types::MessageContent::ToolResult { tool_use_id, content, is_error: _ } => {
+                MessageContent::ToolResult(ToolResult {
+                    tool_use_id,
+                    content,
+                    is_error: _,
+                }) => {
                     // For tool results, we need to set the tool_call_id and role to "tool"
                     tool_call_id = Some(tool_use_id);
-                    // Convert tool result content to string format
-                    for tool_content in content {
-                        match tool_content {
-                            mcp_protocol::tool::ToolContent::Text { text } => {
-                                regular_content.push(OpenAIMessageContent::Text { text });
-                            }
-                            // Handle other tool content types as needed
-                            _ => {
-                                regular_content.push(OpenAIMessageContent::Text { 
-                                    text: format!("{:?}", tool_content) 
-                                });
-                            }
-                        }
-                    }
+
+                    let openai_content: Vec<OpenAIMessageContent> =
+                        serde_json::from_slice(&content).unwrap_or_else(|e| {
+                            log(&format!("Failed to deserialize tool result content: {}", e));
+                            vec![]
+                        });
+
+                    regular_content.extend(openai_content);
                 }
                 other => {
                     regular_content.push(OpenAIMessageContent::from(other));
@@ -275,12 +296,12 @@ impl From<Message> for OpenAIMessage {
 
         // Determine the role
         let role = if has_tool_results {
-            "tool".to_string()  // Tool results must use "tool" role
+            "tool".to_string() // Tool results must use "tool" role
         } else {
             match message.role {
-                genai_types::messages::Role::User => "user".to_string(),
-                genai_types::messages::Role::Assistant => "assistant".to_string(),
-                genai_types::messages::Role::System => "system".to_string(),
+                MessageRole::User => "user".to_string(),
+                MessageRole::Assistant => "assistant".to_string(),
+                MessageRole::System => "system".to_string(),
             }
         };
 
@@ -292,7 +313,11 @@ impl From<Message> for OpenAIMessage {
                 Some(OpenAIMessageContentFormat::Array(regular_content))
             },
             name: None, // Could be extracted from message metadata if needed
-            tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+            tool_calls: if tool_calls.is_empty() {
+                None
+            } else {
+                Some(tool_calls)
+            },
             tool_call_id,
             audio: None,
             refusal: None,
@@ -302,35 +327,56 @@ impl From<Message> for OpenAIMessage {
 
 impl OpenAIMessage {
     // Custom serialization method that respects provider format
-    pub fn serialize_for_provider(&self, format: &crate::types::state::ContentFormat) -> serde_json::Value {
+    pub fn serialize_for_provider(
+        &self,
+        format: &crate::types::state::ContentFormat,
+    ) -> serde_json::Value {
         let mut map = serde_json::Map::new();
-        
-        map.insert("role".to_string(), serde_json::Value::String(self.role.clone()));
-        
+
+        map.insert(
+            "role".to_string(),
+            serde_json::Value::String(self.role.clone()),
+        );
+
         if let Some(content) = &self.content {
-            map.insert("content".to_string(), content.serialize_for_provider(format));
+            map.insert(
+                "content".to_string(),
+                content.serialize_for_provider(format),
+            );
         }
-        
+
         if let Some(name) = &self.name {
             map.insert("name".to_string(), serde_json::Value::String(name.clone()));
         }
-        
+
         if let Some(tool_calls) = &self.tool_calls {
-            map.insert("tool_calls".to_string(), serde_json::to_value(tool_calls).unwrap_or(serde_json::Value::Null));
+            map.insert(
+                "tool_calls".to_string(),
+                serde_json::to_value(tool_calls).unwrap_or(serde_json::Value::Null),
+            );
         }
-        
+
         if let Some(tool_call_id) = &self.tool_call_id {
-            map.insert("tool_call_id".to_string(), serde_json::Value::String(tool_call_id.clone()));
+            map.insert(
+                "tool_call_id".to_string(),
+                serde_json::Value::String(tool_call_id.clone()),
+            );
         }
-        
+
         if let Some(audio) = &self.audio {
-            map.insert("audio".to_string(), serde_json::to_value(audio).unwrap_or(serde_json::Value::Null));
+            map.insert(
+                "audio".to_string(),
+                serde_json::to_value(audio).unwrap_or(serde_json::Value::Null),
+            );
         }
-        
+
         if let Some(refusal) = &self.refusal {
-            map.insert("refusal".to_string(), serde_json::Value::String(refusal.clone()));
+            map.insert(
+                "refusal".to_string(),
+                serde_json::Value::String(refusal.clone()),
+            );
         }
-        
+
         serde_json::Value::Object(map)
     }
 }
@@ -468,7 +514,7 @@ pub struct OpenAIResponseFormat {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OpenAIAudioParams {
-    pub voice: String, // "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer"
+    pub voice: String,  // "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer"
     pub format: String, // "wav" | "mp3" | "flac" | "opus"
 }
 
@@ -477,9 +523,16 @@ pub struct OpenAIAudioParams {
 /// but OpenAI/Moonshot requires each tool result to be a separate message
 fn split_message_for_openai(message: Message) -> Vec<OpenAIMessage> {
     // Check if this message contains tool results
-    let tool_results: Vec<_> = message.content.iter()
+    let tool_results: Vec<_> = message
+        .content
+        .iter()
         .filter_map(|content| {
-            if let genai_types::MessageContent::ToolResult { tool_use_id, content, is_error } = content {
+            if let MessageContent::ToolResult(ToolResult {
+                tool_use_id,
+                content,
+                is_error,
+            }) = content
+            {
                 Some((tool_use_id.clone(), content.clone(), *is_error))
             } else {
                 None
@@ -496,8 +549,10 @@ fn split_message_for_openai(message: Message) -> Vec<OpenAIMessage> {
     let mut result_messages = Vec::new();
 
     // First, handle any non-tool-result content in the original message
-    let non_tool_content: Vec<_> = message.content.iter()
-        .filter(|content| !matches!(content, genai_types::MessageContent::ToolResult { .. }))
+    let non_tool_content: Vec<_> = message
+        .content
+        .iter()
+        .filter(|content| !matches!(content, MessageContent::ToolResult { .. }))
         .cloned()
         .collect();
 
@@ -513,20 +568,12 @@ fn split_message_for_openai(message: Message) -> Vec<OpenAIMessage> {
     // Now create separate messages for each tool result
     for (tool_use_id, content, _is_error) in tool_results {
         // Convert tool result content to OpenAI format
-        let mut openai_content = Vec::new();
-        for tool_content in content {
-            match tool_content {
-                mcp_protocol::tool::ToolContent::Text { text } => {
-                    openai_content.push(OpenAIMessageContent::Text { text });
-                }
-                // Handle other tool content types as needed
-                _ => {
-                    openai_content.push(OpenAIMessageContent::Text { 
-                        text: format!("{:?}", tool_content) 
-                    });
-                }
-            }
-        }
+
+        let openai_content: Vec<OpenAIMessageContent> = serde_json::from_slice(&content)
+            .unwrap_or_else(|e| {
+                log(&format!("Failed to deserialize tool result content: {}", e));
+                vec![]
+            });
 
         // Create the tool result message
         let tool_message = OpenAIMessage {
@@ -567,15 +614,18 @@ impl From<CompletionRequest> for OpenAICompletionRequest {
             presence_penalty: None,
             frequency_penalty: None,
             tools: request.tools.map(|tools| {
-                tools.into_iter().map(|tool| OpenAITool {
-                    tool_type: "function".to_string(),
-                    function: OpenAIFunction {
-                        name: tool.name,
-                        description: tool.description,
-                        parameters: tool.input_schema,
-                        strict: None,
-                    },
-                }).collect()
+                tools
+                    .into_iter()
+                    .map(|tool| OpenAITool {
+                        tool_type: "function".to_string(),
+                        function: OpenAIFunction {
+                            name: tool.name,
+                            description: tool.description,
+                            parameters: tool.input_schema.into(),
+                            strict: None,
+                        },
+                    })
+                    .collect()
             }),
             tool_choice: request.tool_choice.map(OpenAIToolChoice::from),
             parallel_tool_calls: request.disable_parallel_tool_use.map(|disable| !disable),
@@ -594,65 +644,90 @@ impl From<CompletionRequest> for OpenAICompletionRequest {
 
 impl OpenAICompletionRequest {
     // Custom serialization method that respects provider format
-    pub fn serialize_for_provider(&self, format: &crate::types::state::ContentFormat) -> serde_json::Value {
+    pub fn serialize_for_provider(
+        &self,
+        format: &crate::types::state::ContentFormat,
+    ) -> serde_json::Value {
         let mut map = serde_json::Map::new();
-        
-        map.insert("model".to_string(), serde_json::Value::String(self.model.clone()));
-        
-        let messages: Vec<serde_json::Value> = self.messages
+
+        map.insert(
+            "model".to_string(),
+            serde_json::Value::String(self.model.clone()),
+        );
+
+        let messages: Vec<serde_json::Value> = self
+            .messages
             .iter()
             .map(|msg| msg.serialize_for_provider(format))
             .collect();
         map.insert("messages".to_string(), serde_json::Value::Array(messages));
-        
+
         if let Some(max_tokens) = self.max_completion_tokens {
-            map.insert("max_completion_tokens".to_string(), serde_json::Value::Number(max_tokens.into()));
+            map.insert(
+                "max_completion_tokens".to_string(),
+                serde_json::Value::Number(max_tokens.into()),
+            );
         }
-        
+
         if let Some(temperature) = self.temperature {
             if let Some(num) = serde_json::Number::from_f64(temperature as f64) {
                 map.insert("temperature".to_string(), serde_json::Value::Number(num));
             }
         }
-        
+
         if let Some(top_p) = self.top_p {
             if let Some(num) = serde_json::Number::from_f64(top_p as f64) {
                 map.insert("top_p".to_string(), serde_json::Value::Number(num));
             }
         }
-        
+
         if let Some(n) = self.n {
             map.insert("n".to_string(), serde_json::Value::Number(n.into()));
         }
-        
+
         if let Some(stream) = self.stream {
             map.insert("stream".to_string(), serde_json::Value::Bool(stream));
         }
-        
+
         if let Some(stop) = &self.stop {
-            map.insert("stop".to_string(), serde_json::to_value(stop).unwrap_or(serde_json::Value::Null));
+            map.insert(
+                "stop".to_string(),
+                serde_json::to_value(stop).unwrap_or(serde_json::Value::Null),
+            );
         }
-        
+
         if let Some(presence_penalty) = self.presence_penalty {
             if let Some(num) = serde_json::Number::from_f64(presence_penalty as f64) {
-                map.insert("presence_penalty".to_string(), serde_json::Value::Number(num));
+                map.insert(
+                    "presence_penalty".to_string(),
+                    serde_json::Value::Number(num),
+                );
             }
         }
-        
+
         if let Some(frequency_penalty) = self.frequency_penalty {
             if let Some(num) = serde_json::Number::from_f64(frequency_penalty as f64) {
-                map.insert("frequency_penalty".to_string(), serde_json::Value::Number(num));
+                map.insert(
+                    "frequency_penalty".to_string(),
+                    serde_json::Value::Number(num),
+                );
             }
         }
-        
+
         if let Some(tools) = &self.tools {
-            map.insert("tools".to_string(), serde_json::to_value(tools).unwrap_or(serde_json::Value::Null));
+            map.insert(
+                "tools".to_string(),
+                serde_json::to_value(tools).unwrap_or(serde_json::Value::Null),
+            );
         }
-        
+
         if let Some(tool_choice) = &self.tool_choice {
-            map.insert("tool_choice".to_string(), serde_json::to_value(tool_choice).unwrap_or(serde_json::Value::Null));
+            map.insert(
+                "tool_choice".to_string(),
+                serde_json::to_value(tool_choice).unwrap_or(serde_json::Value::Null),
+            );
         }
-        
+
         serde_json::Value::Object(map)
     }
 }
@@ -663,10 +738,10 @@ pub struct OpenAIUsage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
     pub total_tokens: u32,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_tokens_details: Option<OpenAIPromptTokensDetails>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completion_tokens_details: Option<OpenAICompletionTokensDetails>,
 }

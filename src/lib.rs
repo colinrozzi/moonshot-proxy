@@ -45,21 +45,31 @@ impl Guest for Component {
         log("Init data parsed successfully");
 
         // Determine which environment variable to use for the API key
-        let api_key_env_name = init_data.config
+        let api_key_env_name = init_data
+            .config
             .as_ref()
             .and_then(|config| config.api_key_env.as_ref())
             .map(|s| s.as_str())
             .unwrap_or("OPENAI_API_KEY");
 
-        log(&format!("Looking for API key in environment variable: {}", api_key_env_name));
+        log(&format!(
+            "Looking for API key in environment variable: {}",
+            api_key_env_name
+        ));
 
         let api_key = match environment::get_var(api_key_env_name) {
             Some(key) => {
-                log(&format!("API key found in environment variable: {}", api_key_env_name));
+                log(&format!(
+                    "API key found in environment variable: {}",
+                    api_key_env_name
+                ));
                 key
             }
             None => {
-                return Err(format!("API key not found in environment variable: {}", api_key_env_name));
+                return Err(format!(
+                    "API key not found in environment variable: {}",
+                    api_key_env_name
+                ));
             }
         };
 

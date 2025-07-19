@@ -1,18 +1,17 @@
 #[cfg(test)]
 mod tests {
-    use crate::types::*;
-    use genai_types::{Message, MessageContent};
+    use crate::bindings::colinrozzi::genai_types::types::{Message, MessageContent};
     use crate::types::api::OpenAIMessage;
-    use mcp_protocol::tool::ToolContent;
+    use crate::types::*;
 
     #[test]
     fn test_openai_model_info() {
         let models = OpenAIModelInfo::get_available_models();
         assert!(!models.is_empty());
-        
+
         // Check that GPT-4o is in the list
         assert!(models.iter().any(|m| m.id == "gpt-4o"));
-        
+
         // Check that o3 is in the list
         assert!(models.iter().any(|m| m.id == "o3"));
     }
@@ -30,7 +29,7 @@ mod tests {
         let pricing = OpenAIModelInfo::get_pricing("gpt-4o");
         assert_eq!(pricing.input_cost_per_million_tokens, 2.50);
         assert_eq!(pricing.output_cost_per_million_tokens, 10.00);
-        
+
         let mini_pricing = OpenAIModelInfo::get_pricing("gpt-4o-mini");
         assert_eq!(mini_pricing.input_cost_per_million_tokens, 0.15);
         assert_eq!(mini_pricing.output_cost_per_million_tokens, 0.60);
@@ -48,18 +47,14 @@ mod tests {
     fn test_tool_result_message_uses_tool_role() {
         // Create a message with tool result content
         let message = Message {
-            role: genai_types::messages::Role::User, // Original role doesn't matter
-            content: vec![
-                MessageContent::ToolResult {
-                    tool_use_id: "call_123".to_string(),
-                    content: vec![
-                        ToolContent::Text {
-                            text: "Search results: Moonshot AI is a company...".to_string()
-                        }
-                    ],
-                    is_error: Some(false),
-                }
-            ],
+            role: MessageRole::User, // Original role doesn't matter
+            content: vec![MessageContent::ToolResult {
+                tool_use_id: "call_123".to_string(),
+                content: vec![ToolContent::Text {
+                    text: "Search results: Moonshot AI is a company...".to_string(),
+                }],
+                is_error: Some(false),
+            }],
         };
 
         // Convert to OpenAI format
@@ -77,7 +72,7 @@ mod tests {
             role: genai_types::messages::Role::Assistant,
             content: vec![
                 MessageContent::Text {
-                    text: "I'll search for that information.".to_string()
+                    text: "I'll search for that information.".to_string(),
                 },
                 MessageContent::ToolUse {
                     id: "call_456".to_string(),
@@ -85,7 +80,7 @@ mod tests {
                     input: serde_json::json!({
                         "query": "Context Caching Moonshot AI"
                     }),
-                }
+                },
             ],
         };
 
@@ -94,7 +89,7 @@ mod tests {
 
         // Verify it uses "assistant" role (tool calls are made by assistant)
         assert_eq!(openai_message.role, "assistant");
-        
+
         // Verify tool_calls is populated
         assert!(openai_message.tool_calls.is_some());
         let tool_calls = openai_message.tool_calls.unwrap();
@@ -108,11 +103,9 @@ mod tests {
         // Create a regular message without tools
         let message = Message {
             role: genai_types::messages::Role::User,
-            content: vec![
-                MessageContent::Text {
-                    text: "Hello, can you help me search for something?".to_string()
-                }
-            ],
+            content: vec![MessageContent::Text {
+                text: "Hello, can you help me search for something?".to_string(),
+            }],
         };
 
         // Convert to OpenAI format

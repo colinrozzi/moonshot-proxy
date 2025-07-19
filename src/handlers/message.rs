@@ -1,7 +1,8 @@
 use crate::api::OpenAIClient;
+use crate::bindings::colinrozzi::genai_types::types::{ProxyRequest, ProxyResponse};
 use crate::bindings::theater::simple::runtime::log;
 use crate::types::state::State;
-use genai_types::{ProxyRequest, ProxyResponse};
+//use genai_types::{ProxyRequest, ProxyResponse};
 
 pub fn handle_request(
     data: Vec<u8>,
@@ -31,9 +32,7 @@ pub fn handle_request(
             log(&format!("Error parsing request: {}", e));
 
             // Try to respond with a properly formatted error
-            let error_response = ProxyResponse::Error {
-                error: format!("Invalid request format: {}", e),
-            };
+            let error_response = ProxyResponse::Error(format!("Invalid request format: {}", e));
 
             match serde_json::to_vec(&error_response) {
                 Ok(bytes) => return Ok((Some(state_bytes), (Some(bytes),))),
@@ -50,21 +49,21 @@ pub fn handle_request(
 
     // Process based on operation type
     let response = match request {
-        ProxyRequest::GenerateCompletion { request } => {
+        ProxyRequest::GenerateCompletion(request) => {
             log(&format!(
                 "Generating completion with model: {}",
                 request.model
             ));
 
-            match client.generate_completion(&request.into(), &state.config.retry_config, &state.config.content_format) {
-                Ok(completion) => ProxyResponse::Completion {
-                    completion: completion.into(),
-                },
+            match client.generate_completion(
+                &request.into(),
+                &state.config.retry_config,
+                &state.config.content_format,
+            ) {
+                Ok(completion) => ProxyResponse::Completion(completion.into()),
                 Err(e) => {
                     log(&format!("Error generating completion: {}", e));
-                    ProxyResponse::Error {
-                        error: format!("Failed to generate completion: {}", e),
-                    }
+                    ProxyResponse::Error(format!("Failed to generate completion: {}", e))
                 }
             }
         }
@@ -73,14 +72,12 @@ pub fn handle_request(
             log("Listing available models");
 
             match client.list_models() {
-                Ok(models) => ProxyResponse::ListModels {
-                    models: models.into_iter().map(|m| m.into()).collect(),
-                },
+                Ok(models) => {
+                    ProxyResponse::ListModels(models.into_iter().map(|m| m.into()).collect())
+                }
                 Err(e) => {
                     log(&format!("Error listing models: {}", e));
-                    ProxyResponse::Error {
-                        error: format!("Failed to list models: {}", e),
-                    }
+                    ProxyResponse::Error(format!("Failed to list models: {}", e))
                 }
             }
         }

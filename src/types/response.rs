@@ -1,6 +1,11 @@
 use crate::bindings::theater::simple::runtime::log;
 use crate::types::api::*;
-use genai_types::{CompletionResponse, ModelInfo, ModelPricing, ToolChoice};
+//use genai_types::{CompletionResponse, ModelInfo, ModelPricing, ToolChoice};
+use crate::bindings::colinrozzi::genai_types::types::{
+    CompletionResponse, MessageContent, MessageRole, ModelInfo, ModelPricing, StopReason,
+    ToolChoice, ToolResult, ToolUse,
+};
+//use crate::bindings::colinrozzi::mcp_protocol::types::{Tool, ToolCallParams};
 use serde::{Deserialize, Serialize};
 
 /// A single choice in the completion response
@@ -29,14 +34,16 @@ pub struct OpenAICompletionResponse {
 }
 
 // Implement conversion from OpenAI types to genai-types
-impl From<OpenAICompletionResponse> for genai_types::CompletionResponse {
+impl From<OpenAICompletionResponse> for CompletionResponse {
     fn from(response: OpenAICompletionResponse) -> Self {
         // Take the first choice (OpenAI can return multiple choices)
         let choice = response.choices.into_iter().next().unwrap_or(OpenAIChoice {
             index: 0,
             message: OpenAIMessage {
                 role: "assistant".to_string(),
-                content: Some(OpenAIMessageContentFormat::String("No response".to_string())),
+                content: Some(OpenAIMessageContentFormat::String(
+                    "No response".to_string(),
+                )),
                 name: None,
                 tool_calls: None,
                 tool_call_id: None,
@@ -49,21 +56,39 @@ impl From<OpenAICompletionResponse> for genai_types::CompletionResponse {
 
         // Convert content, handling both string and array formats
         let mut content = match choice.message.content {
-            Some(content_format) => {
-                content_format.to_content_vec()
-                    .into_iter()
-                    .map(|c| match c {
-                        OpenAIMessageContent::Text { text } => genai_types::MessageContent::Text { text },
-                        OpenAIMessageContent::ToolUse { id, name, input } => {
-                            genai_types::MessageContent::ToolUse { id, name, input }
-                        }
-                        OpenAIMessageContent::ToolResult { tool_use_id, content, is_error } => {
-                            genai_types::MessageContent::ToolResult { tool_use_id, content, is_error }
-                        }
-                        _ => genai_types::MessageContent::Text { text: "Unsupported content type".to_string() },
-                    })
-                    .collect()
-            }
+            Some(content_format) => content_format
+                .to_content_vec()
+                .into_iter()
+                .map(|c| match c {
+                    OpenAIMessageContent::Text { text } => MessageContent::Text(text),
+                    OpenAIMessageContent::ToolUse { id, name, input } => {
+                        MessageContent::ToolUse(ToolUse {
+                            id,
+                            name,
+                            input: serde_json::to_vec(&input).unwrap_or_else(|_| {
+                                log(&format!("Failed to serialize tool use input: {}", input));
+                                serde_json::to_vec(&serde_json::json!({})).unwrap_or_default()
+                            }),
+                        })
+                    }
+                    OpenAIMessageContent::ToolResult {
+                        tool_use_id,
+                        content,
+                        is_error,
+                    } => MessageContent::ToolResult(ToolResult {
+                        tool_use_id,
+                        content: serde_json::to_vec(&content).unwrap_or_else(|_| {
+                            log(&format!(
+                                "Failed to serialize tool result content: {:?}",
+                                content
+                            ));
+                            serde_json::to_vec(&serde_json::json!({})).unwrap_or_default()
+                        }),
+                        is_error: is_error.unwrap_or(false),
+                    }),
+                    _ => MessageContent::Text("Unsupported content type".to_string()),
+                })
+                .collect(),
             None => vec![],
         };
 
@@ -80,43 +105,37 @@ impl From<OpenAICompletionResponse> for genai_types::CompletionResponse {
                         }
                     };
 
-                    content.push(genai_types::MessageContent::ToolUse {
+                    content.push(MessageContent::ToolUse(ToolUse {
                         id: tool_call.id,
                         name: tool_call.function.name,
-                        input,
-                    });
+                        input: serde_json::to_vec(&input).unwrap_or_else(|_| {
+                            log(&format!("Failed to serialize tool call input: {}", input));
+                            serde_json::to_vec(&serde_json::json!({})).unwrap_or_default()
+                        }),
+                    }));
                 }
             }
         }
 
-        // If we have no content at all, add a default empty response
-        if content.is_empty() {
-            content.push(genai_types::MessageContent::Text { 
-                text: "Empty response".to_string() 
-            });
-        }
-
         let stop_reason = match choice.finish_reason.as_str() {
-            "stop" => genai_types::messages::StopReason::EndTurn,
-            "length" => genai_types::messages::StopReason::MaxTokens,
-            "tool_calls" => genai_types::messages::StopReason::ToolUse,
-            "content_filter" => genai_types::messages::StopReason::StopSequence,
-            other => genai_types::messages::StopReason::Other(other.to_string()),
+            "stop" => StopReason::EndTurn,
+            "length" => StopReason::MaxTokens,
+            "tool_calls" => StopReason::ToolUse,
+            "content_filter" => StopReason::StopSequence,
+            other => StopReason::Other(other.to_string()),
         };
 
         Self {
             id: response.id,
             model: response.model,
             role: match choice.message.role.as_str() {
-                "user" => genai_types::messages::Role::User,
-                "assistant" => genai_types::messages::Role::Assistant,
-                "system" => genai_types::messages::Role::System,
-                _ => genai_types::messages::Role::Assistant, // default fallback
+                "user" => MessageRole::User,
+                "assistant" => MessageRole::Assistant,
+                "system" => MessageRole::System,
+                _ => MessageRole::Assistant, // default fallback
             },
             content,
             stop_reason,
-            stop_sequence: None,
-            message_type: "message".to_string(),
             usage: response.usage.into(),
         }
     }
@@ -136,9 +155,9 @@ impl From<CompletionResponse> for OpenAICompletionResponse {
                 index: 0,
                 message: OpenAIMessage {
                     role: match response.role {
-                        genai_types::messages::Role::User => "user".to_string(),
-                        genai_types::messages::Role::Assistant => "assistant".to_string(),
-                        genai_types::messages::Role::System => "system".to_string(),
+                        MessageRole::User => "user".to_string(),
+                        MessageRole::Assistant => "assistant".to_string(),
+                        MessageRole::System => "system".to_string(),
                     },
                     content: Some(OpenAIMessageContentFormat::Array(
                         response
@@ -155,11 +174,11 @@ impl From<CompletionResponse> for OpenAICompletionResponse {
                 },
                 logprobs: None,
                 finish_reason: match response.stop_reason {
-                    genai_types::messages::StopReason::EndTurn => "stop".to_string(),
-                    genai_types::messages::StopReason::MaxTokens => "length".to_string(),
-                    genai_types::messages::StopReason::ToolUse => "tool_calls".to_string(),
-                    genai_types::messages::StopReason::StopSequence => "stop".to_string(),
-                    genai_types::messages::StopReason::Other(_) => "stop".to_string(),
+                    StopReason::EndTurn => "stop".to_string(),
+                    StopReason::MaxTokens => "length".to_string(),
+                    StopReason::ToolUse => "tool_calls".to_string(),
+                    StopReason::StopSequence => "stop".to_string(),
+                    StopReason::Other(_) => "stop".to_string(),
                 },
             }],
             usage: response.usage.into(),
@@ -259,8 +278,8 @@ pub struct OpenAIModelPricing {
 impl From<ModelPricing> for OpenAIModelPricing {
     fn from(pricing: ModelPricing) -> Self {
         Self {
-            input_cost_per_million_tokens: pricing.input_cost_per_million_tokens,
-            output_cost_per_million_tokens: pricing.output_cost_per_million_tokens,
+            input_cost_per_million_tokens: pricing.input_price,
+            output_cost_per_million_tokens: pricing.output_price,
         }
     }
 }
@@ -268,8 +287,8 @@ impl From<ModelPricing> for OpenAIModelPricing {
 impl From<OpenAIModelPricing> for ModelPricing {
     fn from(pricing: OpenAIModelPricing) -> Self {
         Self {
-            input_cost_per_million_tokens: pricing.input_cost_per_million_tokens,
-            output_cost_per_million_tokens: pricing.output_cost_per_million_tokens,
+            input_price: pricing.input_cost_per_million_tokens,
+            output_price: pricing.output_cost_per_million_tokens,
         }
     }
 }
@@ -278,7 +297,7 @@ impl From<ToolChoice> for OpenAIToolChoice {
     fn from(choice: ToolChoice) -> Self {
         match choice {
             ToolChoice::Auto => OpenAIToolChoice::String("auto".to_string()),
-            ToolChoice::Tool { name } => OpenAIToolChoice::Object {
+            ToolChoice::Specific(name) => OpenAIToolChoice::Object {
                 choice_type: "function".to_string(),
                 function: OpenAIChoiceFunction { name },
             },
@@ -295,29 +314,29 @@ impl OpenAIModelInfo {
             // GPT-4o models
             "gpt-4o" | "gpt-4o-2024-11-20" | "gpt-4o-2024-08-06" | "gpt-4o-2024-05-13" => 128000,
             "gpt-4o-mini" | "gpt-4o-mini-2024-07-18" => 128000,
-            
+
             // GPT-4 Turbo models
             "gpt-4-turbo" | "gpt-4-turbo-2024-04-09" | "gpt-4-turbo-preview" => 128000,
             "gpt-4-0125-preview" | "gpt-4-1106-preview" => 128000,
-            
+
             // Standard GPT-4 models
             "gpt-4" | "gpt-4-0613" | "gpt-4-0314" => 8192,
             "gpt-4-32k" | "gpt-4-32k-0613" | "gpt-4-32k-0314" => 32768,
-            
+
             // o-series reasoning models
             "o3" | "o3-2025-01-31" => 200000,
             "o3-mini" | "o3-mini-2025-01-31" => 200000,
             "o1" | "o1-2024-12-17" => 200000,
             "o1-mini" | "o1-mini-2024-09-12" => 128000,
             "o1-preview" | "o1-preview-2024-09-12" => 128000,
-            
+
             // GPT-3.5 models
             "gpt-3.5-turbo" | "gpt-3.5-turbo-0125" | "gpt-3.5-turbo-1106" => 16385,
             "gpt-3.5-turbo-16k" | "gpt-3.5-turbo-16k-0613" => 16385,
-            
+
             // Audio models
             "gpt-4o-audio-preview" | "gpt-4o-audio-preview-2024-10-01" => 128000,
-            
+
             // Default case
             _ => 128000, // Conservative default for newer models
         }
@@ -343,17 +362,19 @@ impl OpenAIModelInfo {
                 input_cost_per_million_tokens: 0.15,
                 output_cost_per_million_tokens: 0.60,
             },
-            
+
             // GPT-4 Turbo models
             "gpt-4-turbo" | "gpt-4-turbo-2024-04-09" => OpenAIModelPricing {
                 input_cost_per_million_tokens: 10.00,
                 output_cost_per_million_tokens: 30.00,
             },
-            "gpt-4-0125-preview" | "gpt-4-1106-preview" | "gpt-4-turbo-preview" => OpenAIModelPricing {
-                input_cost_per_million_tokens: 10.00,
-                output_cost_per_million_tokens: 30.00,
-            },
-            
+            "gpt-4-0125-preview" | "gpt-4-1106-preview" | "gpt-4-turbo-preview" => {
+                OpenAIModelPricing {
+                    input_cost_per_million_tokens: 10.00,
+                    output_cost_per_million_tokens: 30.00,
+                }
+            }
+
             // Standard GPT-4 models
             "gpt-4" | "gpt-4-0613" | "gpt-4-0314" => OpenAIModelPricing {
                 input_cost_per_million_tokens: 30.00,
@@ -363,7 +384,7 @@ impl OpenAIModelInfo {
                 input_cost_per_million_tokens: 60.00,
                 output_cost_per_million_tokens: 120.00,
             },
-            
+
             // o-series reasoning models
             "o3" | "o3-2025-01-31" => OpenAIModelPricing {
                 input_cost_per_million_tokens: 60.00,
@@ -385,7 +406,7 @@ impl OpenAIModelInfo {
                 input_cost_per_million_tokens: 15.00,
                 output_cost_per_million_tokens: 60.00,
             },
-            
+
             // GPT-3.5 models
             "gpt-3.5-turbo" | "gpt-3.5-turbo-0125" | "gpt-3.5-turbo-1106" => OpenAIModelPricing {
                 input_cost_per_million_tokens: 0.50,
@@ -395,13 +416,13 @@ impl OpenAIModelInfo {
                 input_cost_per_million_tokens: 3.00,
                 output_cost_per_million_tokens: 4.00,
             },
-            
+
             // Audio models
             "gpt-4o-audio-preview" | "gpt-4o-audio-preview-2024-10-01" => OpenAIModelPricing {
                 input_cost_per_million_tokens: 2.50,
                 output_cost_per_million_tokens: 10.00,
             },
-            
+
             // Default for unknown models
             _ => OpenAIModelPricing {
                 input_cost_per_million_tokens: 10.00,
@@ -428,7 +449,6 @@ impl OpenAIModelInfo {
                 provider: "OpenAI".to_string(),
                 pricing: Some(Self::get_pricing("gpt-4o-mini")),
             },
-            
             // GPT-4 Turbo models
             OpenAIModelInfo {
                 id: "gpt-4-turbo".to_string(),
@@ -437,7 +457,6 @@ impl OpenAIModelInfo {
                 provider: "OpenAI".to_string(),
                 pricing: Some(Self::get_pricing("gpt-4-turbo")),
             },
-            
             // Standard GPT-4 models
             OpenAIModelInfo {
                 id: "gpt-4".to_string(),
@@ -446,7 +465,6 @@ impl OpenAIModelInfo {
                 provider: "OpenAI".to_string(),
                 pricing: Some(Self::get_pricing("gpt-4")),
             },
-            
             // o-series reasoning models
             OpenAIModelInfo {
                 id: "o3".to_string(),
@@ -476,7 +494,6 @@ impl OpenAIModelInfo {
                 provider: "OpenAI".to_string(),
                 pricing: Some(Self::get_pricing("o1-mini")),
             },
-            
             // GPT-3.5 models
             OpenAIModelInfo {
                 id: "gpt-3.5-turbo".to_string(),
