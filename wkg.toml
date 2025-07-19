@@ -1,0 +1,2 @@
+[overrides]
+"colinrozzi:genai-types" = { version = "0.0.6" }
