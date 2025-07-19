@@ -1,0 +1,21 @@
+{
+  "GenerateCompletion": {
+    "model": "moonshot-v1-8k",
+    "messages": [
+      {
+        "role": "User",
+        "content": [
+          {
+            "Text": "Hello! Can you tell me a fun fact about space?"
+          }
+        ]
+      }
+    ],
+    "max_tokens": 100,
+    "temperature": 0.7,
+    "system": "You are a helpful AI assistant.",
+    "tools": null,
+    "tool_choice": null,
+    "disable_parallel_tool_use": null
+  }
+}
