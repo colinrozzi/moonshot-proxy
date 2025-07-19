@@ -5,6 +5,7 @@ use crate::bindings::colinrozzi::mcp_protocol::types::ContentItem;
 use crate::bindings::theater::simple::runtime::log;
 //use mcp_protocol::tool::ToolContent;
 use serde::{Deserialize, Deserializer, Serialize};
+use serde::de::Error as SerdeError;
 
 // Helper enum to handle both string and array content formats
 #[derive(Debug, Clone)]
@@ -178,10 +179,37 @@ impl From<MessageContent> for OpenAIMessageContent {
                 content,
                 is_error,
             }) => {
+                // Try to deserialize the tool result content
                 let openai_content: Vec<ContentItem> = serde_json::from_slice(&content)
+                    .or_else(|_| {
+                        // If direct deserialization fails, try to parse as string first
+                        match String::from_utf8(content.clone()) {
+                            Ok(content_str) => {
+                                log(&format!("Tool result content as string: {}", content_str));
+                                
+                                // Try to parse the string as JSON
+                                serde_json::from_str::<Vec<ContentItem>>(&content_str)
+                            },
+                            Err(e) => {
+                                log(&format!("Failed to convert content to string: {}", e));
+                                Err(serde_json::Error::custom("Failed to parse as UTF-8"))
+                            }
+                        }
+                    })
                     .unwrap_or_else(|e| {
                         log(&format!("Failed to deserialize tool result content: {}", e));
-                        vec![]
+                        
+                        // As a fallback, try to extract just the text from the raw content
+                        let content_str = String::from_utf8_lossy(&content);
+                        log(&format!("Raw content string: {}", content_str));
+                        
+                        // Create a basic text content item as fallback
+                        vec![ContentItem::Text(Some(crate::bindings::colinrozzi::mcp_protocol::types::TextContent {
+                            type_: "text".to_string(),
+                            text: content_str.to_string(),
+                            annotations: None,
+                            meta: None,
+                        }))]
                     });
 
                 OpenAIMessageContent::ToolResult {
@@ -280,12 +308,62 @@ impl From<Message> for OpenAIMessage {
                     // For tool results, we need to set the tool_call_id and role to "tool"
                     tool_call_id = Some(tool_use_id);
 
-                    let openai_content: Vec<OpenAIMessageContent> =
-                        serde_json::from_slice(&content).unwrap_or_else(|e| {
-                            log(&format!("Failed to deserialize tool result content: {}", e));
-                            vec![]
-                        });
+                    // Use the same improved deserialization logic as in the from() method
+                    let openai_content: Vec<OpenAIMessageContent> = {
+                        // Try to deserialize as ContentItem first, then convert to OpenAIMessageContent
+                        let content_items: Vec<ContentItem> = serde_json::from_slice(&content)
+                            .or_else(|_| {
+                                // If direct deserialization fails, try to parse as string first
+                                match String::from_utf8(content.clone()) {
+                                    Ok(content_str) => {
+                                        log(&format!("Tool result content as string: {}", content_str));
+                                        
+                                        // Try to parse the string as JSON
+                                        serde_json::from_str::<Vec<ContentItem>>(&content_str)
+                                    },
+                                    Err(e) => {
+                                        log(&format!("Failed to convert content to string: {}", e));
+                                        Err(serde_json::Error::custom("Failed to parse as UTF-8"))
+                                    }
+                                }
+                            })
+                            .unwrap_or_else(|e| {
+                                log(&format!("Failed to deserialize tool result content: {}", e));
+                                
+                                // As a fallback, try to extract just the text from the raw content
+                                let content_str = String::from_utf8_lossy(&content);
+                                log(&format!("Raw content string: {}", content_str));
+                                
+                                // Create a basic text content item as fallback
+                                vec![ContentItem::Text(Some(crate::bindings::colinrozzi::mcp_protocol::types::TextContent {
+                                    type_: "text".to_string(),
+                                    text: content_str.to_string(),
+                                    annotations: None,
+                                    meta: None,
+                                }))]
+                            });
+                        
+                        // Convert ContentItems to OpenAIMessageContent
+                        content_items.into_iter().map(|item| {
+                            match item {
+                                ContentItem::Text(Some(text_content)) => {
+                                    OpenAIMessageContent::Text { text: text_content.text }
+                                },
+                                ContentItem::Text(None) => {
+                                    OpenAIMessageContent::Text { text: "[Empty text content]".to_string() }
+                                },
+                                _ => {
+                                    log(&format!("Unsupported content item type in tool result: {:?}", item));
+                                    OpenAIMessageContent::Text { text: "[Unsupported content type]".to_string() }
+                                }
+                            }
+                        }).collect()
+                    };
 
+                    log(&format!("Tool result converted to {} OpenAI content items", openai_content.len()));
+                    for (i, content_item) in openai_content.iter().enumerate() {
+                        log(&format!("  Content item {}: {:?}", i, content_item));
+                    }
                     regular_content.extend(openai_content);
                 }
                 other => {
@@ -305,19 +383,32 @@ impl From<Message> for OpenAIMessage {
             }
         };
 
+        let content = if regular_content.is_empty() {
+            None
+        } else {
+            Some(OpenAIMessageContentFormat::Array(regular_content))
+        };
+        
+        let tool_calls_final = if tool_calls.is_empty() {
+            None
+        } else {
+            Some(tool_calls)
+        };
+        
+        log(&format!("Final message - role: {}, content_items: {}, tool_call_id: {:?}", 
+            role, 
+            content.as_ref().map(|c| match c {
+                OpenAIMessageContentFormat::String(_) => 1,
+                OpenAIMessageContentFormat::Array(arr) => arr.len(),
+            }).unwrap_or(0),
+            tool_call_id
+        ));
+
         Self {
             role,
-            content: if regular_content.is_empty() {
-                None
-            } else {
-                Some(OpenAIMessageContentFormat::Array(regular_content))
-            },
+            content,
             name: None, // Could be extracted from message metadata if needed
-            tool_calls: if tool_calls.is_empty() {
-                None
-            } else {
-                Some(tool_calls)
-            },
+            tool_calls: tool_calls_final,
             tool_call_id,
             audio: None,
             refusal: None,
