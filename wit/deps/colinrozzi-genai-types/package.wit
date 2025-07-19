@@ -1,0 +1,99 @@
+package colinrozzi:genai-types;
+
+interface types {
+  use colinrozzi:mcp-protocol/types.{tool, json-data};
+
+  variant message-role {
+    user,
+    assistant,
+    system,
+  }
+
+  record tool-use {
+    id: string,
+    name: string,
+    input: json-data,
+  }
+
+  record tool-result {
+    tool-use-id: string,
+    content: json-data,
+    is-error: bool,
+  }
+
+  variant message-content {
+    text(string),
+    tool-use(tool-use),
+    tool-result(tool-result),
+  }
+
+  record message {
+    role: message-role,
+    content: list<message-content>,
+  }
+
+  variant tool-choice {
+    auto,
+    any,
+    none,
+    specific(string),
+  }
+
+  record completion-request {
+    model: string,
+    messages: list<message>,
+    max-tokens: u32,
+    temperature: option<f32>,
+    system: option<string>,
+    tools: option<list<tool>>,
+    tool-choice: option<tool-choice>,
+    disable-parallel-tool-use: option<bool>,
+  }
+
+  variant stop-reason {
+    end-turn,
+    max-tokens,
+    stop-sequence,
+    tool-use,
+    other(string),
+  }
+
+  record usage {
+    input-tokens: u32,
+    output-tokens: u32,
+  }
+
+  record completion-response {
+    content: list<message-content>,
+    id: string,
+    model: string,
+    role: message-role,
+    stop-reason: stop-reason,
+    usage: usage,
+  }
+
+  record model-pricing {
+    input-price: f64,
+    output-price: f64,
+  }
+
+  record model-info {
+    id: string,
+    display-name: string,
+    max-tokens: u32,
+    provider: string,
+    pricing: option<model-pricing>,
+  }
+
+  variant proxy-request {
+    list-models,
+    generate-completion(completion-request),
+  }
+
+  variant proxy-response {
+    list-models(list<model-info>),
+    completion(completion-response),
+    error(string),
+  }
+}
+

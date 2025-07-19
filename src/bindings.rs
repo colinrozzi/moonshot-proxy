@@ -3401,12 +3401,12 @@ macro_rules! __export_default_impl {
 pub(crate) use __export_default_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[unsafe(
-    link_section = "component-type:wit-bindgen:0.41.0:colinrozzi:openai-proxy:default:encoded world"
+    link_section = "component-type:wit-bindgen:0.41.0:colinrozzi:moonshot-proxy:default:encoded world"
 )]
 #[doc(hidden)]
 #[allow(clippy::octal_escapes)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 4289] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xc3\x20\x01A\x02\x01\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 4291] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xc5\x20\x01A\x02\x01\
 A\x1d\x01B<\x01p}\x04\0\x09json-data\x03\0\0\x01s\x04\0\x0eprogress-token\x03\0\x02\
 \x01s\x04\0\x06cursor\x03\0\x04\x01s\x04\0\x0arequest-id\x03\0\x06\x01ks\x01k\x01\
 \x01r\x03\x04names\x0bdescription\x08\x04meta\x09\x04\0\x0dbase-metadata\x03\0\x0a\
@@ -3497,10 +3497,10 @@ te\x07\x06params\x0c\0\x12\x04\0\x13handle-channel-open\x01\x13\x01o\x02\x03\x06
 \x01o\x01\x03\x01@\x02\x05state\x07\x06params\x16\0\x0a\x04\0\x14handle-channel-\
 close\x01\x17\x04\0$theater:simple/message-server-client\x05\x11\x01B\x07\x01p}\x01\
 k\0\x01o\x01s\x01o\x01\x01\x01j\x01\x03\x01s\x01@\x02\x05state\x01\x06params\x02\
-\0\x04\x04\0\x04init\x01\x05\x04\0\x14theater:simple/actor\x05\x12\x04\0\x1fcoli\
-nrozzi:openai-proxy/default\x04\0\x0b\x0d\x01\0\x07default\x03\0\0\0G\x09produce\
-rs\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-bindgen-rust\x060.\
-41.0";
+\0\x04\x04\0\x04init\x01\x05\x04\0\x14theater:simple/actor\x05\x12\x04\0!colinro\
+zzi:moonshot-proxy/default\x04\0\x0b\x0d\x01\0\x07default\x03\0\0\0G\x09producer\
+s\x01\x0cprocessed-by\x02\x0dwit-component\x070.227.1\x10wit-bindgen-rust\x060.4\
+1.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {

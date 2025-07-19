@@ -621,7 +621,16 @@ impl From<CompletionRequest> for OpenAICompletionRequest {
                         function: OpenAIFunction {
                             name: tool.name,
                             description: tool.description,
-                            parameters: tool.input_schema.into(),
+                            parameters: {
+                                // Convert JsonData (Vec<u8>) to serde_json::Value
+                                match serde_json::from_slice::<serde_json::Value>(&tool.input_schema) {
+                                    Ok(value) => value,
+                                    Err(_) => {
+                                        // Fallback to empty object if parsing fails
+                                        serde_json::json!({})
+                                    }
+                                }
+                            },
                             strict: None,
                         },
                     })

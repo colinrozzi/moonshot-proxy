@@ -1,4 +1,4 @@
-package colinrozzi:openai-proxy;
+package colinrozzi:moonshot-proxy;
 
 world default {
   import colinrozzi:genai-types/types;
