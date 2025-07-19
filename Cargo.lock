@@ -41,17 +41,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "genai-types"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a48883fdb7378af22338aa0104191022472e7d05f9d10d7278d76ffe44f3bcb"
-dependencies = [
- "mcp-protocol",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -187,16 +176,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "241eaef5fd12c88705a01fc1066c48c4b36e0dd4377dcdc7ec3942cea7a69956"
 
 [[package]]
-name = "mcp-protocol"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99e54fa9c5dba69f8f4aad3c1191ddff3711336e513fa2b01e93bd9cb317f7ad"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "memchr"
 version = "2.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -207,8 +186,6 @@ name = "moonshot-proxy"
 version = "0.1.0"
 dependencies = [
  "base64",
- "genai-types",
- "mcp-protocol",
  "serde",
  "serde_bytes",
  "serde_json",

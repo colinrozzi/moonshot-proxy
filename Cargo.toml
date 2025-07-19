@@ -26,8 +26,6 @@ wit-bindgen-rt = { version = "0.39.0", features = ["bitflags"] }
 toml = "0.7.6"
 base64 = "0.21.0"
 url = "2.3.1"
-genai-types = "0.4.2"
-mcp-protocol = "0.2.0"
 
 [profile.release]
 codegen-units = 1
