@@ -2,17 +2,15 @@ use crate::bindings::theater::simple::http_client::{send_http, HttpRequest};
 use crate::bindings::theater::simple::runtime::log;
 use crate::bindings::theater::simple::timing;
 use crate::types::{
-    OpenAICompletionRequest, OpenAICompletionResponse, OpenAIError, OpenAIModelInfo,
-    RetryConfig,
+    api::OpenAICompletionRequest,
+    response::{OpenAICompletionResponse, OpenAIError, OpenAIModelInfo},
+    state::{ContentFormat, RetryConfig},
 };
 
-
-
-/// Client for interacting with the OpenAI API
+/// Client for interacting with the OpenAI-compatible API (including Moonshot)
 pub struct OpenAIClient {
-    /// OpenAI API key
+    /// API key
     api_key: String,
-
     /// Base URL for the API
     base_url: String,
 }
@@ -141,7 +139,7 @@ impl OpenAIClient {
         &self,
         request: &OpenAICompletionRequest,
         retry_config: &RetryConfig,
-        content_format: &crate::types::state::ContentFormat,
+        content_format: &ContentFormat,
     ) -> Result<OpenAICompletionResponse, OpenAIError> {
         log(&format!("Generating completion with model: {}", request.model));
 
@@ -160,7 +158,7 @@ impl OpenAIClient {
             headers: vec![
                 ("authorization".to_string(), format!("Bearer {}", self.api_key)),
                 ("content-type".to_string(), "application/json".to_string()),
-                ("user-agent".to_string(), "openai-proxy/0.1.0".to_string()),
+                ("user-agent".to_string(), "moonshot-proxy/0.1.0".to_string()),
             ],
             body: Some(request_body),
         };

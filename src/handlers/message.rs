@@ -1,4 +1,5 @@
 use crate::api::OpenAIClient;
+use crate::types::OpenAICompletionRequest;
 use crate::bindings::colinrozzi::genai_types::types::{ProxyRequest, ProxyResponse};
 use crate::bindings::theater::simple::runtime::log;
 use crate::types::state::State;
@@ -55,8 +56,9 @@ pub fn handle_request(
                 request.model
             ));
 
+            let openai_request: OpenAICompletionRequest = request.into();
             match client.generate_completion(
-                &request.into(),
+                &openai_request,
                 &state.config.retry_config,
                 &state.config.content_format,
             ) {

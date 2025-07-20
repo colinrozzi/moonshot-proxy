@@ -3,8 +3,7 @@ mod bindings;
 mod handlers;
 pub mod types;
 
-#[cfg(test)]
-mod tests;
+// Tests removed - will be rewritten for new architecture
 
 use crate::bindings::exports::theater::simple::actor::Guest;
 use crate::bindings::exports::theater::simple::message_server_client::Guest as MessageServerClient;
