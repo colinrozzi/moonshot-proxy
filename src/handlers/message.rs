@@ -1,5 +1,6 @@
 use crate::api::OpenAIClient;
 use crate::types::OpenAICompletionRequest;
+use crate::types::response::OpenAIModelInfo;
 use crate::bindings::colinrozzi::genai_types::types::{ProxyRequest, ProxyResponse};
 use crate::bindings::theater::simple::runtime::log;
 use crate::types::state::State;
@@ -55,6 +56,26 @@ pub fn handle_request(
                 "Generating completion with model: {}",
                 request.model
             ));
+
+            // Validate that the model is supported
+            if !OpenAIModelInfo::is_model_supported(&request.model) {
+                let suggestions = OpenAIModelInfo::get_model_suggestions(&request.model);
+                let error_msg = if !suggestions.is_empty() {
+                    format!(
+                        "Unsupported model '{}'. Did you mean one of: {}? Available models can be listed using the ListModels request.",
+                        request.model,
+                        suggestions.join(", ")
+                    )
+                } else {
+                    format!(
+                        "Unsupported model '{}'. Please check the available models using the ListModels request.",
+                        request.model
+                    )
+                };
+                
+                log(&format!("Model validation failed: {}", error_msg));
+                return Ok((Some(state_bytes), (Some(serde_json::to_vec(&ProxyResponse::Error(error_msg)).unwrap()),)));
+            }
 
             let openai_request: OpenAICompletionRequest = request.into();
             match client.generate_completion(

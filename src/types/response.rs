@@ -87,6 +87,8 @@ pub enum OpenAIError {
     RateLimitExceeded { retry_after: Option<u64> },
     /// Invalid response format
     InvalidResponse(String),
+    /// Unsupported model requested
+    UnsupportedModel { requested: String, suggestions: Vec<String> },
 }
 
 impl std::fmt::Display for OpenAIError {
@@ -106,6 +108,15 @@ impl std::fmt::Display for OpenAIError {
                 }
             }
             OpenAIError::InvalidResponse(msg) => write!(f, "Invalid response: {}", msg),
+            OpenAIError::UnsupportedModel { requested, suggestions } => {
+                write!(f, "Unsupported model '{}'. ", requested)?;
+                if !suggestions.is_empty() {
+                    write!(f, "Did you mean one of: {}?", suggestions.join(", "))?;
+                } else {
+                    write!(f, "Please check the available models list.")?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -128,6 +139,63 @@ pub struct OpenAIModelInfo {
 }
 
 impl OpenAIModelInfo {
+    /// Check if a model is supported
+    pub fn is_model_supported(model_id: &str) -> bool {
+        Self::get_available_models()
+            .iter()
+            .any(|model| model.id == model_id)
+    }
+
+    /// Get supported model suggestions for error messages
+    pub fn get_model_suggestions(requested_model: &str) -> Vec<String> {
+        let available_models = Self::get_available_models();
+        let mut suggestions = Vec::new();
+        
+        // First, look for exact case-insensitive matches
+        for model in &available_models {
+            if model.id.to_lowercase() == requested_model.to_lowercase() {
+                suggestions.push(model.id.clone());
+            }
+        }
+        
+        // If no exact matches, look for partial matches
+        if suggestions.is_empty() {
+            for model in &available_models {
+                if model.id.to_lowercase().contains(&requested_model.to_lowercase()) 
+                   || requested_model.to_lowercase().contains(&model.id.to_lowercase()) {
+                    suggestions.push(model.id.clone());
+                }
+            }
+        }
+        
+        // If still no matches, return popular models based on provider hints
+        if suggestions.is_empty() {
+            if requested_model.to_lowercase().contains("moonshot") 
+               || requested_model.to_lowercase().contains("kimi") {
+                suggestions.extend([
+                    "moonshot-v1-8k".to_string(),
+                    "moonshot-v1-32k".to_string(),
+                    "kimi-k2-0711-preview".to_string(),
+                ]);
+            } else if requested_model.to_lowercase().contains("gpt") {
+                suggestions.extend([
+                    "gpt-4".to_string(),
+                    "gpt-4-turbo".to_string(),
+                    "gpt-3.5-turbo".to_string(),
+                ]);
+            } else {
+                // Default popular suggestions
+                suggestions.extend([
+                    "moonshot-v1-8k".to_string(),
+                    "kimi-k2-0711-preview".to_string(),
+                    "gpt-4".to_string(),
+                ]);
+            }
+        }
+        
+        suggestions.into_iter().take(3).collect()
+    }
+
     /// Get a list of available OpenAI and Moonshot models
     pub fn get_available_models() -> Vec<Self> {
         vec![
@@ -162,6 +230,22 @@ impl OpenAIModelInfo {
                 created: None,
                 owned_by: "moonshot".to_string(),
                 context_length: 8192,
+                pricing: None,
+            },
+            Self {
+                id: "kimi-k2-0711-preview".to_string(),
+                object: "model".to_string(),
+                created: None,
+                owned_by: "moonshot".to_string(),
+                context_length: 128000,
+                pricing: None,
+            },
+            Self {
+                id: "kimi-k2-0707-preview".to_string(),
+                object: "model".to_string(),
+                created: None,
+                owned_by: "moonshot".to_string(),
+                context_length: 128000,
                 pricing: None,
             },
             // OpenAI models (for compatibility)

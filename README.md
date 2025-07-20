@@ -17,6 +17,8 @@ A WebAssembly component actor that serves as a proxy for the Moonshot AI API, ma
 - `moonshot-v1-32k` - 32K context window  
 - `moonshot-v1-128k` - 128K context window
 - `moonshot-v1-8k-vision-preview` - Vision model with 8K context
+- `kimi-k2-0711-preview` - Kimi K2 preview model
+- `kimi-k2-0707-preview` - Kimi K2 preview model (July 7 version)
 
 ## Configuration
 
@@ -60,7 +62,7 @@ cargo component build --release
 ```
 
 The generated WebAssembly component will be at:
-`./target/wasm32-wasip1/release/moonshot_proxy.wasm`
+`./target/wasm32-unknown-unknown/release/moonshot_proxy.wasm`
 
 ## Starting
 
@@ -156,7 +158,7 @@ This project was created by copying and adapting the OpenAI proxy. Key changes m
 - Default configuration set to Moonshot API endpoint
 - Content format set to "String" for Moonshot compatibility
 - Environment variable changed to `MOONSHOT_API_KEY`
-- Build target updated to `wasm32-wasip1`
+- Build target uses `wasm32-unknown-unknown`
 
 ## License
 
