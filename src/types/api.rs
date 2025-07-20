@@ -2,7 +2,24 @@
 use crate::bindings::colinrozzi::genai_types::types::{CompletionRequest, Tool, ToolChoice};
 use crate::types::conversion::{MessageConverter, OpenAIMessage};
 use crate::types::state::ContentFormat;
+use crate::bindings::theater::simple::runtime::log;
 use serde::{Deserialize, Serialize};
+
+/// OpenAI-compatible tool structure for the API
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OpenAITool {
+    #[serde(rename = "type")]
+    pub tool_type: String,
+    pub function: OpenAIFunction,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OpenAIFunction {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub parameters: serde_json::Value,
+}
 
 /// OpenAI completion request structure
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -24,9 +41,36 @@ pub struct OpenAICompletionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<Tool>>,
+    pub tools: Option<Vec<OpenAITool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<ToolChoice>,
+}
+
+/// Convert MCP Protocol Tools to OpenAI format
+fn convert_tools_to_openai_format(tools: &[Tool]) -> Vec<OpenAITool> {
+    tools.iter().map(|tool| {
+        // Parse the input_schema bytes to JSON
+        let parameters = match serde_json::from_slice::<serde_json::Value>(&tool.input_schema) {
+            Ok(schema) => schema,
+            Err(e) => {
+                log(&format!("Failed to parse tool input_schema for {}: {}", tool.name, e));
+                serde_json::json!({
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                })
+            }
+        };
+        
+        OpenAITool {
+            tool_type: "function".to_string(),
+            function: OpenAIFunction {
+                name: tool.name.clone(),
+                description: tool.description.clone(),
+                parameters,
+            },
+        }
+    }).collect()
 }
 
 impl From<CompletionRequest> for OpenAICompletionRequest {
@@ -61,7 +105,7 @@ impl From<CompletionRequest> for OpenAICompletionRequest {
             presence_penalty: None,
             stop: None,
             stream: Some(false), // We don't support streaming yet
-            tools: request.tools,
+            tools: request.tools.as_ref().map(|tools| convert_tools_to_openai_format(tools)),
             tool_choice: request.tool_choice,
         }
     }
