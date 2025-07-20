@@ -126,6 +126,59 @@ impl OpenAIClient {
         }
     }
 
+    /// Parse response in a content-format aware way
+    fn parse_response(
+        body: &[u8],
+        content_format: &ContentFormat,
+    ) -> Result<OpenAICompletionResponse, OpenAIError> {
+        log(&format!("Parsing response with content format: {:?}", content_format));
+        
+        match content_format {
+            ContentFormat::String => {
+                log("Using String content format for response parsing");
+                // For string format (Moonshot), we need to handle string content
+                let mut raw_response: serde_json::Value = serde_json::from_slice(body)?;
+                
+                log(&format!("Raw response structure: {}", serde_json::to_string_pretty(&raw_response).unwrap_or("<invalid json>".to_string())));
+                
+                // Convert string content to OpenAIContent format
+                if let Some(choices) = raw_response.get_mut("choices").and_then(|c| c.as_array_mut()) {
+                    log(&format!("Found {} choices to process", choices.len()));
+                    for (i, choice) in choices.iter_mut().enumerate() {
+                        if let Some(message) = choice.get_mut("message") {
+                            if let Some(content_str) = message.get("content").and_then(|c| c.as_str()) {
+                                log(&format!("Converting string content in choice {}: {:?}", i, content_str));
+                                // Replace string content with OpenAIContent object
+                                let openai_content = crate::types::conversion::OpenAIContent::from_text(content_str.to_string());
+                                message["content"] = serde_json::to_value(openai_content)?;
+                                log(&format!("Successfully converted content for choice {}", i));
+                            } else {
+                                log(&format!("Choice {} message content is not a string or missing", i));
+                            }
+                        } else {
+                            log(&format!("Choice {} has no message field", i));
+                        }
+                    }
+                } else {
+                    log("No choices array found in response");
+                }
+                
+                log("Attempting to deserialize modified response");
+                // Now deserialize the modified response
+                let completion: OpenAICompletionResponse = serde_json::from_value(raw_response)?;
+                log("Successfully parsed response with String content format");
+                Ok(completion)
+            },
+            ContentFormat::Array => {
+                log("Using Array content format for response parsing");
+                // For array format (OpenAI), deserialize directly
+                let completion: OpenAICompletionResponse = serde_json::from_slice(body)?;
+                log("Successfully parsed response with Array content format");
+                Ok(completion)
+            }
+        }
+    }
+
     /// List available models from the OpenAI API
     pub fn list_models(&self) -> Result<Vec<OpenAIModelInfo>, OpenAIError> {
         log("Using static OpenAI model list");
@@ -194,7 +247,8 @@ impl OpenAIClient {
             String::from_utf8_lossy(&body)
         ));
 
-        let completion: OpenAICompletionResponse = serde_json::from_slice(&body)?;
+        // Parse the response in a content-format aware way
+        let completion: OpenAICompletionResponse = Self::parse_response(&body, content_format)?;
 
         log("Completion generated successfully");
 
