@@ -1,5 +1,5 @@
 // Simplified API module that uses the new conversion logic
-use crate::bindings::colinrozzi::genai_types::types::CompletionRequest;
+use crate::bindings::colinrozzi::genai_types::types::{CompletionRequest, Tool, ToolChoice};
 use crate::types::conversion::{MessageConverter, OpenAIMessage};
 use crate::types::state::ContentFormat;
 use serde::{Deserialize, Serialize};
@@ -23,6 +23,10 @@ pub struct OpenAICompletionRequest {
     pub stop: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<Tool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_choice: Option<ToolChoice>,
 }
 
 impl From<CompletionRequest> for OpenAICompletionRequest {
@@ -57,6 +61,8 @@ impl From<CompletionRequest> for OpenAICompletionRequest {
             presence_penalty: None,
             stop: None,
             stream: Some(false), // We don't support streaming yet
+            tools: request.tools,
+            tool_choice: request.tool_choice,
         }
     }
 }
@@ -110,6 +116,14 @@ impl OpenAICompletionRequest {
         
         if let Some(stream) = self.stream {
             request.insert("stream".to_string(), serde_json::Value::Bool(stream));
+        }
+        
+        if let Some(tools) = &self.tools {
+            request.insert("tools".to_string(), serde_json::to_value(tools).unwrap_or(serde_json::Value::Null));
+        }
+        
+        if let Some(tool_choice) = &self.tool_choice {
+            request.insert("tool_choice".to_string(), serde_json::to_value(tool_choice).unwrap_or(serde_json::Value::Null));
         }
         
         serde_json::Value::Object(request)
