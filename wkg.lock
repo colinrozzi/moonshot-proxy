@@ -7,8 +7,8 @@ name = "colinrozzi:genai-types"
 registry = "wa.dev"
 
 [[packages.versions]]
-requirement = "^0.0.6"
-version = "0.0.6"
+requirement = "^0.0.8"
+version = "0.0.8"
 digest = "sha256:bd2f842847da2ddc73213ba98e126be16ffe34f75d6f7a633fe8371c7e77d11f"
 
 [[packages]]
