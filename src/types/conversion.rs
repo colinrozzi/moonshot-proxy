@@ -196,8 +196,7 @@ impl MessageConverter {
                         tool_type: "function".to_string(),
                         function: OpenAIFunctionCall {
                             name,
-                            arguments: serde_json::to_string(&input_value)
-                                .unwrap_or_else(|_| "{}".to_string()),
+                            arguments: input_value,
                         },
                     });
                 }
@@ -295,7 +294,7 @@ impl MessageConverter {
             for tool_call in tool_calls {
                 if tool_call.tool_type == "function" {
                     let input: serde_json::Value =
-                        serde_json::from_str(&tool_call.function.arguments).unwrap_or_else(|_| {
+                        serde_json::from_value(tool_call.function.arguments).unwrap_or_else(|_| {
                             log("Failed to parse tool call arguments");
                             serde_json::json!({})
                         });
@@ -416,7 +415,7 @@ pub struct OpenAIToolCall {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OpenAIFunctionCall {
     pub name: String,
-    pub arguments: String,
+    pub arguments: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
